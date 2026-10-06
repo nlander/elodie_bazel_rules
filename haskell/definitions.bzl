@@ -1,6 +1,6 @@
 def _haskell_binary_compile(ctx):
     compiled_binary = ctx.actions.declare_file(ctx.label.name + ".bin")
-    src_depset = depset([ctx.file.src])
+    src_depset = depset(ctx.files.srcs)
     args = ctx.actions.args()
     args.add("-O2")
     args.add("-o", compiled_binary.path)
@@ -23,8 +23,16 @@ def _normalize_runpath(ctx, file):
 
 def _haskell_impl(ctx):
     script = ctx.actions.declare_file(ctx.label.name)
-    xlsx2csv_runpath = _normalize_runpath(ctx, ctx.executable._xlsx2csv)
-    xlsx2csv_dir = xlsx2csv_runpath.rsplit("/", 1)[0]
+
+    tool_runfiles = []
+    tool_dirs = []
+    for tool in ctx.files.tools:
+        tool_runfiles.append(tool)
+        tool_path = _normalize_runpath(ctx, tool)
+        tool_dir = tool_path.rsplit("/", 1)[0]
+        if tool_dir not in tool_dirs:
+            tool_dirs.append(tool_dir)
+    path_exports = "\n".join(['export PATH="$RUNFILES_DIR/{dir}:$PATH"'.format(dir=d) for d in tool_dirs])
     common_script_content = """#!/usr/bin/env bash
 if [ -z "$RUNFILES_DIR" ]; then
   if [ -d "${{BASH_SOURCE[0]}}.runfiles" ]; then
@@ -34,10 +42,10 @@ if [ -z "$RUNFILES_DIR" ]; then
   fi
 fi
 
-export PATH="$RUNFILES_DIR/{xlsx2csv_dir}:$PATH"
-""".format( xlsx2csv_dir = xlsx2csv_dir )
+{path_exports}
+""".format( path_exports = path_exports )
     outputs = [script]
-    runfiles_files = [ctx.executable._xlsx2csv]
+    runfiles_files = list(tool_runfiles)
     if ctx.attr._run_type == "haskell_binary":
         compiled_binary = _haskell_binary_compile(ctx)
         real_binary_runpath = _normalize_runpath(ctx, compiled_binary)
@@ -79,16 +87,15 @@ def _make_haskell_rule(run_type, ghc_cfg):
         executable = True,
         attrs = {
             "srcs": attr.label_list(allow_files = [".hs"]),
+            "tools": attr.label_list(allow_files = True,
+                cfg = "target",
+                default = [],
+            ),
             "_run_type": attr.string(default = run_type),
             "_ghc": attr.label(
                 default = Label("@nix_ghc//:ghc"),
                 executable = True,
                 cfg = ghc_cfg,
-            ),
-            "_xlsx2csv": attr.label(
-                default = Label("@nix_xlsx2csv//:xlsx2csv"),
-                executable = True,
-                cfg = "target",
             ),
         },
     )
