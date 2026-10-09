@@ -2,3 +2,6 @@ module(
     name = "elodie_bazel_rules",
     version = "0.1.0",
 )
+
+nix_toolchain = use_extension("@elodie_bazel_rules//nix:definitions.bzl", "nix_toolchain_extension")
+use_repo(nix_toolchain, "nix_ghc", "nix_xlsx2csv")
