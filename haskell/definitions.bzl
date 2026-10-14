@@ -1,12 +1,26 @@
+HaskellLibraryInfo = provider(
+    doc = "Información de una librería de Haskell compilada",
+    fields = ["hi_dir"],
+)
+
 def _haskell_binary_compile(ctx):
     compiled_binary = ctx.actions.declare_file(ctx.label.name + ".bin")
     src_depset = depset(ctx.files.srcs)
+    dep_dirs = []
+    all_inputs = list(ctx.files.srcs)
+    for dep in ctx.attr.deps:
+        dep_dir = dep[HaskellLibraryInfo].hi_dir
+        dep_dirs.append(dep_dir)
+        all_inputs.append(dep_dir)
+
     args = ctx.actions.args()
     args.add("-O2")
     args.add("-o", compiled_binary.path)
+    for d in dep_dirs:
+        args.add("-i" + d.path)
     args.add_all(src_depset)
     ctx.actions.run(
-        inputs = src_depset,
+        inputs = depset(all_inputs),
         outputs = [compiled_binary],
         executable = ctx.executable._ghc,
         arguments = [args],
@@ -65,12 +79,15 @@ fi
 """.format( path_exports = path_exports )
     outputs = [script]
     runfiles_files = list(tool_runfiles)
+    script_suffix = ""
+    library_provider = []
     if ctx.attr._run_type == "haskell_library":
         outputs_dir = _haskell_library_compile(ctx)
         outputs.append(outputs_dir)
         script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
             dir = _normalize_runpath(ctx, outputs_dir)
         )
+        library_provider = [HaskellLibraryInfo(hi_dir = outputs_dir)]
     elif ctx.attr._run_type == "haskell_binary":
         compiled_binary = _haskell_binary_compile(ctx)
         real_binary_runpath = _normalize_runpath(ctx, compiled_binary)
@@ -83,16 +100,21 @@ exec "$RUNFILES_DIR/{real_binary}" "$@"
         ghc_runpath = _normalize_runpath(ctx, ctx.executable._ghc)
         src_runpaths = [_normalize_runpath(ctx, src) for src in ctx.files.srcs]
         src_args = " ".join(['"$RUNFILES_DIR/{src}"'.format(src = src) for src in src_runpaths])
+        dep_args = []
+        for dep in ctx.attr.deps:
+            dep_dir = dep[HaskellLibraryInfo].hi_dir
+            dep_runpath = _normalize_runpath(ctx, dep_dir)
+            dep_args.append('-i"$RUNFILES_DIR/{dir}"'.format(dir=dep_runpath))
+            runfiles_files.extend(dep[DefaultInfo].files.to_list())
+        all_args = " ".join([src_args] + dep_args)
         script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {src_args}
+exec "$RUNFILES_DIR/{ghc}" --interactive {all_args}
 """.format(
             ghc = ghc_runpath,
-            src_args = src_args,
+            all_args = all_args,
         )
         runfiles_files.extend(ctx.files.srcs)
         runfiles_files.append(ctx.executable._ghc)
-    else:
-        script_suffix = ""
 
     ctx.actions.write(
         output = script,
@@ -104,7 +126,7 @@ exec "$RUNFILES_DIR/{ghc}" --interactive {src_args}
         executable = script,
         files = depset(outputs),
         runfiles = ctx.runfiles(files = runfiles_files),
-    )]
+    )] + library_provider
 
 def _make_haskell_rule(run_type, ghc_cfg):
     return rule(
@@ -112,6 +134,7 @@ def _make_haskell_rule(run_type, ghc_cfg):
         executable = (run_type != "haskell_library"),
         attrs = {
             "srcs": attr.label_list(allow_files = [".hs"]),
+            "deps": attr.label_list(providers=[HaskellLibraryInfo], default=[]),
             "tools": attr.label_list(allow_files = True,
                 cfg = "target",
                 default = [],
