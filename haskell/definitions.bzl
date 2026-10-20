@@ -14,6 +14,7 @@ def _haskell_compile_common_args(ctx):
 
     args = ctx.actions.args()
     args.add("-O2")
+    args.add("-v")
     for d in dep_dirs:
         args.add("-i" + d.path)
     args.add_all(src_depset)
