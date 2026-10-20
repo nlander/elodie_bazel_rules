@@ -14,8 +14,9 @@ def _haskell_compile_common_args(ctx):
 
     args = ctx.actions.args()
     args.add("-O2")
-    for d in dep_dirs:
-        args.add("-i" + d.path)
+    dep_paths = [dep_dir.path for dep_dir in dep_dirs]
+    if dep_paths:
+        args.add("-i" + ":".join(dep_paths))
     args.add_all(src_depset)
     return args, all_inputs
 
@@ -37,7 +38,6 @@ def _haskell_library_compile(ctx):
     outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_hi")
     args, all_inputs = _haskell_compile_common_args(ctx)
     args.add("-odir", outputs_dir.path)
-    args.add("-hidir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
         outputs = [outputs_dir],
