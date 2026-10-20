@@ -50,7 +50,7 @@ def _haskell_library_compile(ctx):
 
 def _normalize_runpath(ctx, file):
     if file.short_path.startswith("../"):
-        return "external/" + file.short_path[3:]
+        return file.short_path[3:]
     workspace_name = ctx.workspace_name if ctx.workspace_name else "_main"
     return workspace_name + "/" + file.short_path
 
@@ -106,7 +106,7 @@ exec "$RUNFILES_DIR/{real_binary}" "$@"
             dep_runpath = _normalize_runpath(ctx, dep_dir)
             dep_args.append('-i"$RUNFILES_DIR/{dir}"'.format(dir=dep_runpath))
             runfiles_files.extend(dep[DefaultInfo].files.to_list())
-        all_args = " ".join(dep_args + [src_args])
+        all_args = " ".join([src_args] + dep_args)
         script_suffix = """
 exec "$RUNFILES_DIR/{ghc}" --interactive {all_args}
 """.format(
