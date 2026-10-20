@@ -3,10 +3,9 @@ HaskellLibraryInfo = provider(
     fields = ["hi_dir", "modules"],
 )
 
-def _haskell_binary_compile(ctx):
-    compiled_binary = ctx.actions.declare_file(ctx.label.name + ".bin")
-    src_depset = depset(ctx.files.srcs)
+def _haskell_compile_common_args(ctx):
     dep_dirs = []
+    src_depset = depset(ctx.files.srcs)
     all_inputs = list(ctx.files.srcs)
     for dep in ctx.attr.deps:
         dep_dir = dep[HaskellLibraryInfo].hi_dir
@@ -15,31 +14,32 @@ def _haskell_binary_compile(ctx):
 
     args = ctx.actions.args()
     args.add("-O2")
-    args.add("-o", compiled_binary.path)
     for d in dep_dirs:
         args.add("-i" + d.path)
     args.add_all(src_depset)
+    return args, all_inputs
+
+def _haskell_binary_compile(ctx):
+    compiled_binary = ctx.actions.declare_file(ctx.label.name + ".bin")
+    args, all_inputs = _haskell_compile_common_args(ctx)
+    args.add("-o", compiled_binary.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
         outputs = [compiled_binary],
         executable = ctx.executable._ghc,
         arguments = [args],
-        mnemonic = "GhcCompile",
+        mnemonic = "GhcCompileBinary",
         progress_message = "Compiling Haskell binary: %s" % ctx.label.name,
     )
     return compiled_binary
 
 def _haskell_library_compile(ctx):
     outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_hi")
-    src_depset = depset(ctx.files.srcs)
-    args = ctx.actions.args()
-    args.add("-c")
-    args.add("-O2")
+    args, all_inputs = _haskell_compile_common_args(ctx)
     args.add("-odir", outputs_dir.path)
     args.add("-hidir", outputs_dir.path)
-    args.add_all(src_depset)
     ctx.actions.run(
-        inputs = src_depset,
+        inputs = depset(all_inputs),
         outputs = [outputs_dir],
         executable = ctx.executable._ghc,
         arguments = [args],
