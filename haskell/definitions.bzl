@@ -1,6 +1,6 @@
 HaskellLibraryInfo = provider(
     doc = "Información de una librería de Haskell compilada",
-    fields = ["hi_dir"],
+    fields = ["hi_dir", "modules"],
 )
 
 def _haskell_binary_compile(ctx):
@@ -88,7 +88,10 @@ fi
         script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
             dir = _get_runfile_path(ctx, outputs_dir)
         )
-        library_provider = [HaskellLibraryInfo(hi_dir = outputs_dir)]
+        library_provider = [HaskellLibraryInfo(
+            hi_dir = outputs_dir,
+            modules = ctx.attr.modules
+        )]
     elif ctx.attr._run_type == "haskell_binary":
         compiled_binary = _haskell_binary_compile(ctx)
         real_binary_runpath = _get_runfile_path(ctx, compiled_binary)
@@ -98,23 +101,21 @@ exec "$RUNFILES_DIR/{real_binary}" "$@"
         outputs.append(compiled_binary)
         runfiles_files.append(compiled_binary)
     elif ctx.attr._run_type == "haskell_repl":
+        lib = ctx.attr.lib
+        lib_info = lib[HaskellLibraryInfo]
+        lib_dir = lib_info.hi_dir
+        lib_modules = lib_info.modules
+        lib_runpath = _get_runfile_path(ctx, lib_dir)
         ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
-        src_runpaths = [_get_runfile_path(ctx, src) for src in ctx.files.srcs]
-        src_args = " ".join(['"$RUNFILES_DIR/{src}"'.format(src = src) for src in src_runpaths])
-        dep_args = []
-        for dep in ctx.attr.deps:
-            dep_dir = dep[HaskellLibraryInfo].hi_dir
-            dep_runpath = _get_runfile_path(ctx, dep_dir)
-            dep_args.append('-i"$RUNFILES_DIR/{dir}"'.format(dir=dep_runpath))
-            runfiles_files.extend(dep[DefaultInfo].files.to_list())
-        all_args = " ".join([src_args] + dep_args)
+        runfiles_files.extend(lib[DefaultInfo].files.to_list())
+        load_command = " ".join(lib_modules)
         script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {all_args}
+exec "$RUNFILES_DIR/{ghc}" --interactive -i"$RUNFILES_DIR/{lib_dir}" -e ":load {modules}"
 """.format(
             ghc = ghc_runpath,
-            all_args = all_args,
+            lib_dir = lib_runpath,
+            modules = load_command,
         )
-        runfiles_files.extend(ctx.files.srcs)
         runfiles_files.append(ctx.executable._ghc)
 
     ctx.actions.write(
@@ -130,23 +131,31 @@ exec "$RUNFILES_DIR/{ghc}" --interactive {all_args}
     )] + library_provider
 
 def _make_haskell_rule(run_type, ghc_cfg):
+    attrs = {
+        "tools": attr.label_list(allow_files = True,
+            cfg = "target",
+            default = [],
+        ),
+        "_run_type": attr.string(default = run_type),
+        "_ghc": attr.label(
+            default = Label("@nix_ghc//:ghc"),
+            executable = True,
+            cfg = ghc_cfg,
+        ),
+    }
+    if run_type == "haskell_library":
+        attrs["srcs"] = attr.label_list(allow_files = [".hs"])
+        attrs["modules"] = attr.string_list(default = [])
+        attrs["deps"] = attr.label_list(providers = [HaskellLibraryInfo], default = [])
+    elif run_type == "haskell_binary":
+        attrs["srcs"] = attr.label_list(allow_files = [".hs"])
+        attrs["deps"] = attr.label_list(providers = [HaskellLibraryInfo], default = [])
+    elif run_type == "haskell_repl":
+        attrs["lib"] = attr.label(providers = [HaskellLibraryInfo], mandatory = True)
     return rule(
         implementation = _haskell_impl,
         executable = (run_type != "haskell_library"),
-        attrs = {
-            "srcs": attr.label_list(allow_files = [".hs"]),
-            "deps": attr.label_list(providers=[HaskellLibraryInfo], default=[]),
-            "tools": attr.label_list(allow_files = True,
-                cfg = "target",
-                default = [],
-            ),
-            "_run_type": attr.string(default = run_type),
-            "_ghc": attr.label(
-                default = Label("@nix_ghc//:ghc"),
-                executable = True,
-                cfg = ghc_cfg,
-            ),
-        },
+        attrs = attrs,
     )
 
 haskell_repl = _make_haskell_rule("haskell_repl", "target")

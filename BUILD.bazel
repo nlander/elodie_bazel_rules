@@ -1,0 +1,17 @@
+load("//haskell:definitions.bzl", "haskell_library", "haskell_binary", "haskell_repl")
+
+haskell_library(
+    name = "test",
+    srcs = ["//haskell:dummy.hs"],
+    modules = ["Dummy"],
+)
+
+haskell_binary(
+    name = "test_binary",
+    srcs = ["//haskell:dummy.hs"],
+)
+
+haskell_repl(
+    name = "test_repl",
+    lib = "test",
+)
