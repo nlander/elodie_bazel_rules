@@ -37,6 +37,7 @@ def _haskell_binary_compile(ctx):
 def _haskell_library_compile(ctx):
     outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_hi")
     args, all_inputs = _haskell_compile_common_args(ctx)
+    args.add("-c")
     args.add("-odir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
