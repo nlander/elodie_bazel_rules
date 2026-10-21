@@ -3,7 +3,7 @@ HaskellLibraryInfo = provider(
     fields = ["hi_dir", "modules"],
 )
 
-def _haskell_compile_common_args(ctx):
+def _haskell_compile_common_args(ctx, args):
     dep_dirs = []
     src_depset = depset(ctx.files.srcs)
     all_inputs = list(ctx.files.srcs)
@@ -12,17 +12,17 @@ def _haskell_compile_common_args(ctx):
         dep_dirs.append(dep_dir)
         all_inputs.append(dep_dir)
 
-    args = ctx.actions.args()
     args.add("-O2")
     dep_paths = [dep_dir.path for dep_dir in dep_dirs]
     if dep_paths:
         args.add("-i" + ":".join(dep_paths))
     args.add_all(src_depset)
-    return args, all_inputs
+    return all_inputs
 
 def _haskell_binary_compile(ctx):
     compiled_binary = ctx.actions.declare_file(ctx.label.name + ".bin")
-    args, all_inputs = _haskell_compile_common_args(ctx)
+    args = ctx.actions.args()
+    all_inputs = _haskell_compile_common_args(ctx, args)
     args.add("-o", compiled_binary.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
@@ -36,8 +36,9 @@ def _haskell_binary_compile(ctx):
 
 def _haskell_library_compile(ctx):
     outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_hi")
-    args, all_inputs = _haskell_compile_common_args(ctx)
+    args = ctx.actions.args()
     args.add("-c")
+    all_inputs = _haskell_compile_common_args(ctx, args)
     args.add("-odir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
