@@ -1,21 +1,19 @@
 HaskellLibraryInfo = provider(
     doc = "Información de una librería de Haskell compilada",
-    fields = ["hi_dir", "modules"],
+    fields = ["pkg_dir", "pkg_name"],
 )
 
 def _haskell_compile_common_args(ctx, args):
     dep_dirs = []
     src_depset = depset(ctx.files.srcs)
     all_inputs = list(ctx.files.srcs)
-    for dep in ctx.attr.deps:
-        dep_dir = dep[HaskellLibraryInfo].hi_dir
-        dep_dirs.append(dep_dir)
-        all_inputs.append(dep_dir)
-
     args.add("-O2")
-    dep_paths = [dep_dir.path for dep_dir in dep_dirs]
-    if dep_paths:
-        args.add("-i" + ":".join(dep_paths))
+    if ctx.attr.deps:
+        for dep in ctx.attr.deps
+            dep_dir = dep[HaskellLibraryInfo].pkg_dir
+            args.add("-package-db", dep_dir)
+            args.add("-package", dep[HaskellLibraryInfo].pkg_name)
+            all_inputs.append(dep_dir)
     args.add_all(src_depset)
     return all_inputs
 
@@ -34,12 +32,20 @@ def _haskell_binary_compile(ctx):
     )
     return compiled_binary
 
+def _object_file_from_module(module_name, outputs_dir):
+    object_file_path = "{outputs_dir}/{module_location}/{ext}".format(
+        outputs_dir = outputs_dir,
+        module_location = module_name.replace(".", "/"),
+        ext = ".o",
+    )
+    return object_file_path
+
 def _haskell_library_compile(ctx):
     outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_hi")
     args = ctx.actions.args()
     args.add("-c")
     all_inputs = _haskell_compile_common_args(ctx, args)
-    args.add("-odir", outputs_dir.path)
+    args.add("-outputdir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
         outputs = [outputs_dir],
@@ -47,6 +53,24 @@ def _haskell_library_compile(ctx):
         arguments = [args],
         mnemonic = "GhcCompileLibrary",
         progress_message = "Compiling Haskell library: %s" % ctx.label.name,
+    )
+    pkg_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
+    object_files = [_object_file_from_module(module, outputs_dir) for module in ctx.attr.modules]
+    archive_args = ctx.actions.args()
+    archive_args.add("rcs")
+    archive_name = "{outputs_dir}/{pkg_name}.a".format(
+        outputs_dir = outputs_dir,
+        pkg_name = ctx.label.name,
+    )
+    archive_args.add(archive_name)
+    archive_args.add_all(object_files)
+    ctx.actions.run(
+        inputs = depset(object_files),
+        outputs = [pkg_dir],
+        executable = ctx.executable._ghc_ar,
+        arguments = [archive_args],
+        mnemonic = "GhcArLibrary",
+        progress_message = "Archiving Haskell library: %s" % ctx.label.name,
     )
     return outputs_dir
 
@@ -146,6 +170,11 @@ def _make_haskell_rule(run_type, ghc_cfg):
         ),
         "_ghc_pkg": attr.label(
             default = Label("@nix_ghc//:ghc-pkg"),
+            executable = True,
+            cfg = ghc_cfg,
+        ),
+        "_ghc_ar": attr.label(
+            default = Label("@nix_ghc//:ghc-ar"),
             executable = True,
             cfg = ghc_cfg,
         ),
