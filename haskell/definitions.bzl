@@ -144,6 +144,11 @@ def _make_haskell_rule(run_type, ghc_cfg):
             executable = True,
             cfg = ghc_cfg,
         ),
+        "_ghc_pkg": attr.label(
+            default = Label("@nix_ghc//:ghc-pkg"),
+            executable = True,
+            cfg = ghc_cfg,
+        ),
     }
     if run_type == "haskell_library":
         attrs["srcs"] = attr.label_list(allow_files = [".hs"])
