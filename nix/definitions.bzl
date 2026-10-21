@@ -40,6 +40,7 @@ nix_repo = repository_rule(
 
 def _nix_toolchain_extension_impl(ctx):
     nix_repo(name = "nix_ghc", flake_output = "ghc-env", has_lib = True)
+    nix_repo(name = "nix_binutils", flake_output = "binutils")
     nix_repo(name = "nix_xlsx2csv", flake_output = "xlsx2csv")
 
 nix_toolchain_extension = module_extension(

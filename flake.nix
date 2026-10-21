@@ -15,6 +15,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.bazel_9
+            haskellEnv
           ];
           shellHook = ''
             exec fish
@@ -22,6 +23,7 @@
         };
         packages = {
           ghc-env = haskellEnv;
+          binutils = pkgs.binutils.out;
           xlsx2csv = pkgs.xlsx2csv;
         };
       }
