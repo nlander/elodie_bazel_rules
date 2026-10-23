@@ -104,6 +104,19 @@ depends: {all_deps}
         content = package_conf_content,
         is_executable = False,
     )
+    package_command_args = ctx.actions.args()
+    package_command_args.add("update")
+    package_db_arg = "--package-db={}".format(outputs_dir)
+    package_command_args.add(package_db_arg)
+    package_command_args.add(package_conf_name)
+    ctx.actions.run(
+        inputs = depset([package_conf]),
+        outputs = [outputs_dir],
+        executable = ctx.executable._ghc_pkg,
+        arguments = [package_command_args],
+        mnemonic = "GhcPkgLibrary",
+        progress_message = "Generating GHC package database: %s" % ctx.label.name,
+    )
     return outputs_dir
 
 def _get_runfile_path(ctx, file):
