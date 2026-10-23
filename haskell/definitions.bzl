@@ -3,24 +3,31 @@ HaskellLibraryInfo = provider(
     fields = ["pkg_dir", "pkg_name"],
 )
 
-def _haskell_compile_common_args(ctx, args):
+PACKAGE_VERSION = "0.1.0"
+
+def _haskell_compile_common_args(ctx, args, all_deps):
     dep_dirs = []
     src_depset = depset(ctx.files.srcs)
     all_inputs = list(ctx.files.srcs)
     args.add("-O2")
     if ctx.attr.deps:
-        for dep in ctx.attr.deps
+        for dep in ctx.attr.deps:
             dep_dir = dep[HaskellLibraryInfo].pkg_dir
             args.add("-package-db", dep_dir)
             args.add("-package", dep[HaskellLibraryInfo].pkg_name)
             all_inputs.append(dep_dir)
+            dep_id = "{package_name}-{package_version}".format(
+                package_name = dep[HaskellLibraryInfo].pkg_name,
+                package_version = PACKAGE_VERSION
+            )
+            all_deps.append(dep_id)
     args.add_all(src_depset)
-    return all_inputs
+    return all_inputs, all_deps
 
 def _haskell_binary_compile(ctx):
     compiled_binary = ctx.actions.declare_file(ctx.label.name + ".bin")
     args = ctx.actions.args()
-    all_inputs = _haskell_compile_common_args(ctx, args)
+    all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
     args.add("-o", compiled_binary.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
@@ -41,10 +48,10 @@ def _object_file_from_module(module_name, outputs_dir):
     return object_file_path
 
 def _haskell_library_compile(ctx):
-    outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_hi")
+    outputs_dir = ctx.actions.declare_directory(ctx.label.name)
     args = ctx.actions.args()
     args.add("-c")
-    all_inputs = _haskell_compile_common_args(ctx, args)
+    all_inputs, all_deps = _haskell_compile_common_args(ctx, args, ctx.attr.deps_external)
     args.add("-outputdir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
@@ -54,23 +61,48 @@ def _haskell_library_compile(ctx):
         mnemonic = "GhcCompileLibrary",
         progress_message = "Compiling Haskell library: %s" % ctx.label.name,
     )
-    pkg_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
+    package_name = ctx.label.name.replace("_", "-")
     object_files = [_object_file_from_module(module, outputs_dir) for module in ctx.attr.modules]
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
-    archive_name = "{outputs_dir}/{pkg_name}.a".format(
+    archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
         outputs_dir = outputs_dir,
-        pkg_name = ctx.label.name,
+        pkg_name = package_name,
     )
+    archive = ctx.actions.declare_file(archive_name)
     archive_args.add(archive_name)
     archive_args.add_all(object_files)
     ctx.actions.run(
         inputs = depset(object_files),
-        outputs = [pkg_dir],
+        outputs = [archive],
         executable = ctx.executable._ghc_ar,
         arguments = [archive_args],
         mnemonic = "GhcArLibrary",
         progress_message = "Archiving Haskell library: %s" % ctx.label.name,
+    )
+    package_conf_name = "{outputs_dir}/{package_name}.conf".format(
+        outputs_dir = outputs_dir,
+        package_name = package_name,
+    )
+    package_conf = ctx.actions.declare_file(package_conf_name)
+    package_conf_content = """
+name: {package_name}
+version: {package_version}
+id: {package_name}-{package_version}
+import-dirs: {outputs_dir}
+library-dirs: {outputs_dir}
+hs-libraries: HS{package_name}
+depends: {all_deps}
+""".format(
+        package_name = package_name,
+        package_version = PACKAGE_VERSION,
+        outputs_dir = outputs_dir,
+        all_deps = all_deps,
+    )
+    ctx.actions.write(
+        output = package_conf,
+        content = package_conf_content,
+        is_executable = False,
     )
     return outputs_dir
 
@@ -183,6 +215,7 @@ def _make_haskell_rule(run_type, ghc_cfg):
         attrs["srcs"] = attr.label_list(allow_files = [".hs"])
         attrs["modules"] = attr.string_list(default = [])
         attrs["deps"] = attr.label_list(providers = [HaskellLibraryInfo], default = [])
+        attrs["deps_external"] = attr.string_list(default = [])
     elif run_type == "haskell_binary":
         attrs["srcs"] = attr.label_list(allow_files = [".hs"])
         attrs["deps"] = attr.label_list(providers = [HaskellLibraryInfo], default = [])
