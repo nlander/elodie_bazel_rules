@@ -15,6 +15,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.bazel_9
+            haskellEnv
           ];
           shellHook = ''
             exec fish
