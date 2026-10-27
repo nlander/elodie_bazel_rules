@@ -1,6 +1,6 @@
 HaskellLibraryInfo = provider(
     doc = "Información de una librería de Haskell compilada",
-    fields = ["pkg_dir", "pkg_name"],
+    fields = ["pkg_dir", "pkg_name", "modules", "dependencies"],
 )
 
 PACKAGE_VERSION = "0.1.0"
@@ -117,7 +117,7 @@ depends: {all_deps}
         mnemonic = "GhcPkgLibrary",
         progress_message = "Generating GHC package database: %s" % ctx.label.name,
     )
-    return outputs_dir
+    return outputs_dir, package_name
 
 def _get_runfile_path(ctx, file):
     if file.short_path.startswith("../"):
@@ -154,14 +154,16 @@ fi
     script_suffix = ""
     library_provider = []
     if ctx.attr._run_type == "haskell_library":
-        outputs_dir = _haskell_library_compile(ctx)
+        outputs_dir, package_name = _haskell_library_compile(ctx)
         outputs.append(outputs_dir)
         script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
             dir = _get_runfile_path(ctx, outputs_dir)
         )
         library_provider = [HaskellLibraryInfo(
-            hi_dir = outputs_dir,
+            pkg_dir = outputs_dir,
+            pkg_name = package_name,
             modules = ctx.attr.modules
+            dependencies = ctx.attr.deps
         )]
     elif ctx.attr._run_type == "haskell_binary":
         compiled_binary = _haskell_binary_compile(ctx)
