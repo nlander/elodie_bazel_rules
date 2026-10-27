@@ -48,7 +48,8 @@ def _object_file_from_module(ctx, module_name, outputs_dir):
     return object_file
 
 def _haskell_library_compile(ctx):
-    outputs_dir = ctx.actions.declare_directory(ctx.label.name)
+    outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_out")
+    package_dir = ctx.actions.declare_directory(ctx.label.name)
     args = ctx.actions.args()
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args, ctx.attr.deps_external)
@@ -106,18 +107,18 @@ depends: {all_deps}
     )
     package_command_args = ctx.actions.args()
     package_command_args.add("update")
-    package_db_arg = "--package-db={}".format(outputs_dir)
+    package_db_arg = "--package-db={}".format(package_dir)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf_name)
     ctx.actions.run(
         inputs = depset([outputs_dir]),
-        outputs = [outputs_dir],
+        outputs = [package_dir],
         executable = ctx.executable._ghc_pkg,
         arguments = [package_command_args],
         mnemonic = "GhcPkgLibrary",
         progress_message = "Generating GHC package database: %s" % ctx.label.name,
     )
-    return outputs_dir, package_name
+    return package_dir, package_name
 
 def _get_runfile_path(ctx, file):
     if file.short_path.startswith("../"):
@@ -164,13 +165,13 @@ fi
     script_suffix = ""
     library_provider = []
     if ctx.attr._run_type == "haskell_library":
-        outputs_dir, package_name = _haskell_library_compile(ctx)
-        outputs.append(outputs_dir)
+        package_dir, package_name = _haskell_library_compile(ctx)
+        outputs.append(package_dir)
         script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
-            dir = _get_runfile_path(ctx, outputs_dir)
+            dir = _get_runfile_path(ctx, package_dir)
         )
         library_provider = [HaskellLibraryInfo(
-            pkg_dir = outputs_dir,
+            pkg_dir = package_dir,
             pkg_name = package_name,
             modules = ctx.attr.modules,
             dependencies = ctx.attr.deps,
