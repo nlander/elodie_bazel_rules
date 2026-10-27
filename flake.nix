@@ -23,7 +23,7 @@
         };
         packages = {
           ghc-env = haskellEnv;
-          binutils = pkgs.binutils;
+          binutils = pkgs.binutils.out;
           xlsx2csv = pkgs.xlsx2csv;
         };
       }
