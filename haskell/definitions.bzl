@@ -175,14 +175,6 @@ fi
             modules = ctx.attr.modules,
             dependencies = ctx.attr.deps,
         )]
-    elif ctx.attr._run_type == "haskell_binary":
-        compiled_binary = _haskell_binary_compile(ctx)
-        real_binary_runpath = _get_runfile_path(ctx, compiled_binary)
-        script_suffix = """
-exec "$RUNFILES_DIR/{real_binary}" "$@"
-""".format( real_binary = real_binary_runpath )
-        outputs.append(compiled_binary)
-        runfiles_files.append(compiled_binary)
     elif ctx.attr._run_type == "haskell_repl":
         lib = ctx.attr.lib
         lib_info = lib[HaskellLibraryInfo]
@@ -217,7 +209,7 @@ exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -e ":load {modules}"
         runfiles = ctx.runfiles(files = runfiles_files),
     )] + library_provider
 
-def _make_haskell_rule(run_type, ghc_cfg):
+def _make_haskell_rule(run_type):
     attrs = {
         "tools": attr.label_list(allow_files = True,
             cfg = "target",
@@ -227,17 +219,17 @@ def _make_haskell_rule(run_type, ghc_cfg):
         "_ghc": attr.label(
             default = Label("@nix_ghc//:ghc"),
             executable = True,
-            cfg = ghc_cfg,
+            cfg = "target",
         ),
         "_ghc_pkg": attr.label(
             default = Label("@nix_ghc//:ghc-pkg"),
             executable = True,
-            cfg = ghc_cfg,
+            cfg = "target",
         ),
         "_ghc_ar": attr.label(
             default = Label("@nix_ghc//:ghc-ar"),
             executable = True,
-            cfg = ghc_cfg,
+            cfg = "target",
         ),
     }
     if run_type == "haskell_library":
@@ -245,9 +237,6 @@ def _make_haskell_rule(run_type, ghc_cfg):
         attrs["modules"] = attr.string_list(default = [])
         attrs["deps"] = attr.label_list(providers = [HaskellLibraryInfo], default = [])
         attrs["deps_external"] = attr.string_list(default = [])
-    elif run_type == "haskell_binary":
-        attrs["srcs"] = attr.label_list(allow_files = [".hs"])
-        attrs["deps"] = attr.label_list(providers = [HaskellLibraryInfo], default = [])
     elif run_type == "haskell_repl":
         attrs["lib"] = attr.label(providers = [HaskellLibraryInfo], mandatory = True)
     return rule(
@@ -256,6 +245,5 @@ def _make_haskell_rule(run_type, ghc_cfg):
         attrs = attrs,
     )
 
-haskell_repl = _make_haskell_rule("haskell_repl", "target")
-haskell_binary = _make_haskell_rule("haskell_binary", "exec")
-haskell_library = _make_haskell_rule("haskell_library", "target")
+haskell_repl = _make_haskell_rule("haskell_repl")
+haskell_library = _make_haskell_rule("haskell_library")
