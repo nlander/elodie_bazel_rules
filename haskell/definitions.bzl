@@ -126,6 +126,16 @@ def _get_runfile_path(ctx, file):
     workspace_name = ctx.workspace_name if ctx.workspace_name else "_main"
     return "{}/{}".format(workspace_name, file.short_path)
 
+def _get_package_arg_for_dep(dep):
+    lib_info = dep[HaskellLibraryInfo]
+    lib_dir = lib_info.pkg_dir
+    lib_name = lib_info.pkg_name
+    args = "-package-db $RUNFILES_DIR/{} -package {}".format(
+        lib_dir,
+        lib_name,
+    )
+    return args
+
 def _haskell_impl(ctx):
     script = ctx.actions.declare_file(ctx.label.name)
 
@@ -162,8 +172,8 @@ fi
         library_provider = [HaskellLibraryInfo(
             pkg_dir = outputs_dir,
             pkg_name = package_name,
-            modules = ctx.attr.modules
-            dependencies = ctx.attr.deps
+            modules = ctx.attr.modules,
+            dependencies = ctx.attr.deps,
         )]
     elif ctx.attr._run_type == "haskell_binary":
         compiled_binary = _haskell_binary_compile(ctx)
@@ -176,17 +186,21 @@ exec "$RUNFILES_DIR/{real_binary}" "$@"
     elif ctx.attr._run_type == "haskell_repl":
         lib = ctx.attr.lib
         lib_info = lib[HaskellLibraryInfo]
-        lib_dir = lib_info.hi_dir
+        lib_dir = lib_info.pkg_dir
         lib_modules = lib_info.modules
+        lib_dependencies = lib_info.dependencies
+        package_args = [_get_package_arg_for_dep(dep) for dep in lib_dependencies]
+        package_args.append(_get_package_arg_for_dep(lib))
+        package_args_string = " ".join(package_args)
         lib_runpath = _get_runfile_path(ctx, lib_dir)
         ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
         runfiles_files.extend(lib[DefaultInfo].files.to_list())
         load_command = " ".join(lib_modules)
         script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive -i"$RUNFILES_DIR/{lib_dir}" -e ":load {modules}"
+exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -e ":load {modules}"
 """.format(
             ghc = ghc_runpath,
-            lib_dir = lib_runpath,
+            dependencies = package_args_string,
             modules = load_command,
         )
         runfiles_files.append(ctx.executable._ghc)
