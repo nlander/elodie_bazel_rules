@@ -110,7 +110,7 @@ depends: {all_deps}
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf_name)
     ctx.actions.run(
-        inputs = depset([package_conf]),
+        inputs = depset([outputs_dir]),
         outputs = [outputs_dir],
         executable = ctx.executable._ghc_pkg,
         arguments = [package_command_args],
