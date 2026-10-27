@@ -39,13 +39,13 @@ def _haskell_binary_compile(ctx):
     )
     return compiled_binary
 
-def _object_file_from_module(module_name, outputs_dir):
-    object_file_path = "{outputs_dir}/{module_location}/{ext}".format(
+def _object_file_from_module(ctx, module_name, outputs_dir):
+    object_file_path = "{outputs_dir}/{module_location}.o".format(
         outputs_dir = outputs_dir,
         module_location = module_name.replace(".", "/"),
-        ext = ".o",
     )
-    return object_file_path
+    object_file = ctx.actions.declare_file(object_file_path)
+    return object_file
 
 def _haskell_library_compile(ctx):
     outputs_dir = ctx.actions.declare_directory(ctx.label.name)
@@ -62,7 +62,7 @@ def _haskell_library_compile(ctx):
         progress_message = "Compiling Haskell library: %s" % ctx.label.name,
     )
     package_name = ctx.label.name.replace("_", "-")
-    object_files = [_object_file_from_module(module, outputs_dir) for module in ctx.attr.modules]
+    object_files = [_object_file_from_module(ctx, module, outputs_dir) for module in ctx.attr.modules]
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
     archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
