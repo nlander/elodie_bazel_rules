@@ -227,7 +227,7 @@ def _make_haskell_rule(run_type):
             cfg = "target",
         ),
         "_ghc_ar": attr.label(
-            default = Label("@nix_ghc//:ghc-ar"),
+            default = Label("@nix_binutils//:ar"),
             executable = True,
             cfg = "target",
         ),
