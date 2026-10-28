@@ -5,10 +5,11 @@ HaskellLibraryInfo = provider(
 
 PACKAGE_VERSION = "0.1.0"
 
-def _haskell_compile_common_args(ctx, args, all_deps):
+def _haskell_compile_common_args(ctx, args):
     dep_dirs = []
     src_depset = depset(ctx.files.srcs)
     all_inputs = list(ctx.files.srcs)
+    all_deps = list(ctx.attr.deps_external)
     args.add("-O2")
     if ctx.attr.deps:
         for dep in ctx.attr.deps:
@@ -52,7 +53,7 @@ def _haskell_library_compile(ctx):
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
-    all_inputs, all_deps = _haskell_compile_common_args(ctx, args, ctx.attr.deps_external)
+    all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
     object_files = [_object_file_from_module(ctx, module, outputs_dir) for module in ctx.attr.modules]
     compile_outputs = []
     compile_outputs.append(outputs_dir)
