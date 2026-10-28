@@ -42,7 +42,7 @@ def _haskell_binary_compile(ctx):
 
 def _object_file_from_module(ctx, module_name, outputs_dir):
     object_file_path = "{outputs_dir}/{module_location}.o".format(
-        outputs_dir = outputs_dir.path,
+        outputs_dir = outputs_dir.short_path,
         module_location = module_name.replace(".", "/"),
     )
     object_file = ctx.actions.declare_file(object_file_path)
@@ -71,7 +71,7 @@ def _haskell_library_compile(ctx):
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
     archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
-        outputs_dir = outputs_dir.path,
+        outputs_dir = outputs_dir.short_path,
         pkg_name = package_name,
     )
     archive = ctx.actions.declare_file(archive_name)
@@ -86,7 +86,7 @@ def _haskell_library_compile(ctx):
         progress_message = "Archiving Haskell library: %s" % ctx.label.name,
     )
     package_conf_name = "{outputs_dir}/{package_name}.conf".format(
-        outputs_dir = outputs_dir.path,
+        outputs_dir = outputs_dir.short_path,
         package_name = package_name,
     )
     package_conf = ctx.actions.declare_file(package_conf_name)
@@ -136,7 +136,7 @@ def _get_package_arg_for_dep(dep):
     lib_dir = lib_info.pkg_dir
     lib_name = lib_info.pkg_name
     args = "-package-db $RUNFILES_DIR/{} -package {}".format(
-        lib_dir.path,
+        lib_dir.short_path,
         lib_name,
     )
     return args
