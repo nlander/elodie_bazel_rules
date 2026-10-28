@@ -53,17 +53,18 @@ def _haskell_library_compile(ctx):
     args = ctx.actions.args()
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args, ctx.attr.deps_external)
+    object_files = [_object_file_from_module(ctx, module, outputs_dir) for module in ctx.attr.modules]
+    compile_outputs = [outputs_dir].extend(object_files)
     args.add("-outputdir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
-        outputs = [outputs_dir],
+        outputs = compile_outputs,
         executable = ctx.executable._ghc,
         arguments = [args],
         mnemonic = "GhcCompileLibrary",
         progress_message = "Compiling Haskell library: %s" % ctx.label.name,
     )
     package_name = ctx.label.name.replace("_", "-")
-    object_files = [_object_file_from_module(ctx, module, outputs_dir) for module in ctx.attr.modules]
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
     archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
