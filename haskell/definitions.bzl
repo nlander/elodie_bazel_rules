@@ -49,7 +49,7 @@ def _object_file_from_module(ctx, module_name, outputs_dir):
 
 def _haskell_library_compile(ctx):
     outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_out")
-    package_dir = ctx.actions.declare_directory(ctx.label.name)
+    package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args, ctx.attr.deps_external)
