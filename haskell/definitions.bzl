@@ -54,7 +54,8 @@ def _haskell_library_compile(ctx):
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args, ctx.attr.deps_external)
     object_files = [_object_file_from_module(ctx, module, outputs_dir) for module in ctx.attr.modules]
-    compile_outputs = [outputs_dir].extend(object_files)
+    compile_outputs = []
+    compile_outputs.append(outputs_dir).extend(object_files)
     args.add("-outputdir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
