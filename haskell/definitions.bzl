@@ -40,25 +40,28 @@ def _haskell_binary_compile(ctx):
     )
     return compiled_binary
 
-def _object_file_from_module(ctx, module_name, outputs_dir):
-    object_file_path = "{outputs_dir}/{module_location}.o".format(
-        outputs_dir = outputs_dir.short_path,
+def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
+    object_file_path = "{outputs_dir}/{module_location}.{ext}".format(
+        outputs_dir = outputs_dir_name,
         module_location = module_name.replace(".", "/"),
+        ext = ext,
     )
     object_file = ctx.actions.declare_file(object_file_path)
     return object_file
 
 def _haskell_library_compile(ctx):
-    outputs_dir = ctx.actions.declare_directory(ctx.label.name + "_out")
+    outputs_dir_name = ctx.label.name + "_out"
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
-    object_files = [_object_file_from_module(ctx, module, outputs_dir) for module in ctx.attr.modules]
+    object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
+    hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
+    outputs_dir_path = hi_files[0].dirname
     compile_outputs = []
-    compile_outputs.append(outputs_dir)
+    compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
-    args.add("-outputdir", outputs_dir.path)
+    args.add("-outputdir", outputs_dir_path)
     ctx.actions.run(
         inputs = depset(all_inputs),
         outputs = compile_outputs,
@@ -71,7 +74,7 @@ def _haskell_library_compile(ctx):
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
     archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
-        outputs_dir = outputs_dir.short_path,
+        outputs_dir = outputs_dir_name,
         pkg_name = package_name,
     )
     archive = ctx.actions.declare_file(archive_name)
@@ -86,7 +89,7 @@ def _haskell_library_compile(ctx):
         progress_message = "Archiving Haskell library: %s" % ctx.label.name,
     )
     package_conf_name = "{outputs_dir}/{package_name}.conf".format(
-        outputs_dir = outputs_dir.short_path,
+        outputs_dir = outputs_dir_name,
         package_name = package_name,
     )
     package_conf = ctx.actions.declare_file(package_conf_name)
@@ -101,7 +104,7 @@ depends: {all_deps}
 """.format(
         package_name = package_name,
         package_version = PACKAGE_VERSION,
-        outputs_dir = outputs_dir.path,
+        outputs_dir = outputs_dir_path,
         all_deps = ", ".join(all_deps),
     )
     ctx.actions.write(
@@ -114,8 +117,9 @@ depends: {all_deps}
     package_db_arg = "--package-db={}".format(package_dir.path)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf_name)
+    package_command_inputs = [package_conf, archive] + hi_files
     ctx.actions.run(
-        inputs = depset([outputs_dir]),
+        inputs = depset(package_command_inputs),
         outputs = [package_dir],
         executable = ctx.executable._ghc_pkg,
         arguments = [package_command_args],
