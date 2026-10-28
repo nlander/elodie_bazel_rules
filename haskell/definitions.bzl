@@ -13,7 +13,7 @@ def _haskell_compile_common_args(ctx, args, all_deps):
     if ctx.attr.deps:
         for dep in ctx.attr.deps:
             dep_dir = dep[HaskellLibraryInfo].pkg_dir
-            args.add("-package-db", dep_dir)
+            args.add("-package-db", dep_dir.path)
             args.add("-package", dep[HaskellLibraryInfo].pkg_name)
             all_inputs.append(dep_dir)
             dep_id = "{package_name}-{package_version}".format(
@@ -110,7 +110,7 @@ depends: {all_deps}
     )
     package_command_args = ctx.actions.args()
     package_command_args.add("update")
-    package_db_arg = "--package-db={}".format(package_dir)
+    package_db_arg = "--package-db={}".format(package_dir.path)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf_name)
     ctx.actions.run(
@@ -135,7 +135,7 @@ def _get_package_arg_for_dep(dep):
     lib_dir = lib_info.pkg_dir
     lib_name = lib_info.pkg_name
     args = "-package-db $RUNFILES_DIR/{} -package {}".format(
-        lib_dir,
+        lib_dir.path,
         lib_name,
     )
     return args
