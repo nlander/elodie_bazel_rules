@@ -53,9 +53,9 @@ def _compile_output_file_from_module(ctx, module_name, outputs_dir_path, ext):
 def _haskell_library_compile(ctx):
     outputs_dir_name = ctx.label.name + "_out"
     if ctx.label.package:
-        outputs_dir_path = ctx.bin_path.path + "/" + ctx.label.package + "/" + outputs_dir_name
+        outputs_dir_path = ctx.bin_dir.path + "/" + ctx.label.package + "/" + outputs_dir_name
     else:
-        outputs_dir_path = ctx.bin_path.path + "/" + outputs_dir_name
+        outputs_dir_path = ctx.bin_dir.path + "/" + outputs_dir_name
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
