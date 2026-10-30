@@ -41,9 +41,9 @@ def _haskell_binary_compile(ctx):
     )
     return compiled_binary
 
-def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
+def _compile_output_file_from_module(ctx, module_name, outputs_dir_path, ext):
     object_file_path = "{outputs_dir}/{module_location}.{ext}".format(
-        outputs_dir = outputs_dir_name,
+        outputs_dir = outputs_dir_path,
         module_location = module_name.replace(".", "/"),
         ext = ext,
     )
@@ -53,15 +53,15 @@ def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
 def _haskell_library_compile(ctx):
     outputs_dir_name = ctx.label.name + "_out"
     if ctx.label.package:
-        outputs_dir_path = ctx.label.package + "/" + outputs_dir_name
+        outputs_dir_path = ctx.bin_path.path + "/" + ctx.label.package + "/" + outputs_dir_name
     else:
-        outputs_dir_path = outputs_dir_name
+        outputs_dir_path = ctx.bin_path.path + "/" + outputs_dir_name
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
-    object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
-    hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
+    object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_path, "o") for module in ctx.attr.modules]
+    hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_path, "hi") for module in ctx.attr.modules]
     compile_outputs = []
     compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
@@ -80,7 +80,7 @@ def _haskell_library_compile(ctx):
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
     archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
-        outputs_dir = outputs_dir_name,
+        outputs_dir = outputs_dir_path,
         pkg_name = package_name,
     )
     archive = ctx.actions.declare_file(archive_name)
@@ -97,7 +97,7 @@ def _haskell_library_compile(ctx):
         progress_message = "Archiving Haskell library: %s" % ctx.label.name,
     )
     package_conf_name = "{outputs_dir}/{package_name}.conf".format(
-        outputs_dir = outputs_dir_name,
+        outputs_dir = outputs_dir_path,
         package_name = package_name,
     )
     package_conf = ctx.actions.declare_file(package_conf_name)
