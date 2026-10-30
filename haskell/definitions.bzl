@@ -57,11 +57,10 @@ def _haskell_library_compile(ctx):
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
     object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
     hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
-    outputs_dir_path = hi_files[0].dirname
     compile_outputs = []
     compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
-    args.add("-outputdir", outputs_dir_path)
+    args.add("-outputdir", outputs_dir_name)
     ctx.actions.run(
         inputs = depset(all_inputs),
         outputs = compile_outputs,
@@ -104,7 +103,7 @@ depends: {all_deps}
 """.format(
         package_name = package_name,
         package_version = PACKAGE_VERSION,
-        outputs_dir = outputs_dir_path,
+        outputs_dir = outputs_dir_name,
         all_deps = ", ".join(all_deps),
     )
     ctx.actions.write(
