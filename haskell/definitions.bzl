@@ -52,6 +52,10 @@ def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
 
 def _haskell_library_compile(ctx):
     outputs_dir_name = ctx.label.name + "_out"
+    if ctx.label.package:
+        outputs_dir_path = ctx.label.package + "/" + outputs_dir_name
+    else:
+        outputs_dir_path = outputs_dir_name
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
@@ -61,7 +65,7 @@ def _haskell_library_compile(ctx):
     compile_outputs = []
     compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
-    args.add("-outputdir", outputs_dir_name)
+    args.add("-outputdir", outputs_dir_path)
     ctx.actions.run(
         inputs = depset(all_inputs),
         outputs = compile_outputs,
@@ -108,7 +112,7 @@ depends: {all_deps}
 """.format(
         package_name = package_name,
         package_version = PACKAGE_VERSION,
-        outputs_dir = outputs_dir_name,
+        outputs_dir = outputs_dir_path,
         all_deps = ", ".join(all_deps),
     )
     ctx.actions.write(
