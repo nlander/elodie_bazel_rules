@@ -11,6 +11,7 @@ def _haskell_compile_common_args(ctx, args):
     all_inputs = list(ctx.files.srcs)
     all_deps = list(ctx.attr.deps_external)
     args.add("-O2")
+    args.add("-tmpdir", "/tmp")
     if ctx.attr.deps:
         for dep in ctx.attr.deps:
             dep_dir = dep[HaskellLibraryInfo].pkg_dir
