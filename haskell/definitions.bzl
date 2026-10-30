@@ -66,6 +66,7 @@ def _haskell_library_compile(ctx):
         outputs = compile_outputs,
         executable = ctx.executable._ghc,
         arguments = [args],
+        env = {"TMPDIR": "/tmp"},
         mnemonic = "GhcCompileLibrary",
         progress_message = "Compiling Haskell library: %s" % ctx.label.name,
     )
@@ -84,6 +85,7 @@ def _haskell_library_compile(ctx):
         outputs = [archive],
         executable = ctx.executable._ghc_ar,
         arguments = [archive_args],
+        env = {"TMPDIR": "/tmp"},
         mnemonic = "GhcArLibrary",
         progress_message = "Archiving Haskell library: %s" % ctx.label.name,
     )
@@ -122,6 +124,7 @@ depends: {all_deps}
         outputs = [package_dir],
         executable = ctx.executable._ghc_pkg,
         arguments = [package_command_args],
+        env = {"TMPDIR": "/tmp"},
         mnemonic = "GhcPkgLibrary",
         progress_message = "Generating GHC package database: %s" % ctx.label.name,
     )
