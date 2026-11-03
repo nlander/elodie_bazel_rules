@@ -31,7 +31,7 @@ def _compile_output_file_from_module(ctx, module_name, outputs_dir, ext):
         module_location = module_name.replace(".", "/"),
         ext = ext,
     )
-    object_file = ctx.actions.declare_file(object_file_path, directory=outputs_dir)
+    object_file = ctx.template_ctx.declare_file(object_file_path, directory=outputs_dir)
     return object_file
 
 def _haskell_library_compile(ctx):
@@ -63,7 +63,7 @@ def _haskell_library_compile(ctx):
     archive_name = "lib{pkg_name}.a".format(
         pkg_name = package_name,
     )
-    archive = ctx.actions.declare_file(archive_name, directory=outputs_dir)
+    archive = ctx.template_ctx.declare_file(archive_name, directory=outputs_dir)
     archive_args.add(archive_name)
     archive_args.add_all(object_files)
     ctx.actions.run(
@@ -79,7 +79,7 @@ def _haskell_library_compile(ctx):
     package_conf_name = "{package_name}.conf".format(
         package_name = package_name,
     )
-    package_conf = ctx.actions.declare_file(package_conf_name, directory=outputs_dir)
+    package_conf = ctx.template_ctx.declare_file(package_conf_name, directory=outputs_dir)
     package_conf_content = """
 name: {package_name}
 version: {package_version}
@@ -136,7 +136,7 @@ def _get_package_arg_for_dep(dep):
 
 def _haskell_impl(ctx):
     script_dir = ctx.actions.declare_directory(ctx.label.name)
-    script = ctx.actions.declare_file(ctx.label.name + "_repl", directory=script_dir)
+    script = ctx.template_ctx.declare_file(ctx.label.name + "_repl", directory=script_dir)
 
     tool_runfiles = []
     tool_dirs = []
