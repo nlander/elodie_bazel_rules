@@ -26,46 +26,27 @@ def _haskell_compile_common_args(ctx, args):
     args.add_all(src_depset)
     return all_inputs, all_deps
 
-def _haskell_binary_compile(ctx):
-    compiled_binary = ctx.actions.declare_file(ctx.label.name + ".bin")
-    args = ctx.actions.args()
-    all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
-    args.add("-o", compiled_binary.path)
-    ctx.actions.run(
-        inputs = depset(all_inputs),
-        outputs = [compiled_binary],
-        executable = ctx.executable._ghc,
-        arguments = [args],
-        mnemonic = "GhcCompileBinary",
-        progress_message = "Compiling Haskell binary: %s" % ctx.label.name,
-    )
-    return compiled_binary
-
-def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
-    object_file_path = "{outputs_dir}/{module_location}.{ext}".format(
-        outputs_dir = outputs_dir_name,
+def _compile_output_file_from_module(ctx, module_name, outputs_dir, ext):
+    object_file_path = "{module_location}.{ext}".format(
         module_location = module_name.replace(".", "/"),
         ext = ext,
     )
-    object_file = ctx.actions.declare_file(object_file_path)
+    object_file = ctx.actions.declare_file(object_file_path, outputs_dir)
     return object_file
 
 def _haskell_library_compile(ctx):
     outputs_dir_name = ctx.label.name + "_out"
-    if ctx.label.package:
-        outputs_dir_path = ctx.bin_dir.path + "/" + ctx.label.package + "/" + outputs_dir_name
-    else:
-        outputs_dir_path = ctx.bin_dir.path + "/" + outputs_dir_name
+    outputs_dir = ctx.actions.declare_directory(outputs_dir_name)
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
-    object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
-    hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
+    object_files = [_compile_output_file_from_module(ctx, module, outputs_dir, "o") for module in ctx.attr.modules]
+    hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir, "hi") for module in ctx.attr.modules]
     compile_outputs = []
     compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
-    args.add("-outputdir", outputs_dir_path)
+    args.add("-outputdir", outputs_dir.path)
     ctx.actions.run(
         inputs = depset(all_inputs),
         outputs = compile_outputs,
@@ -79,11 +60,10 @@ def _haskell_library_compile(ctx):
     package_name = ctx.label.name.replace("_", "-")
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
-    archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
-        outputs_dir = outputs_dir_name,
+    archive_name = "lib{pkg_name}.a".format(
         pkg_name = package_name,
     )
-    archive = ctx.actions.declare_file(archive_name)
+    archive = ctx.actions.declare_file(archive_name, outputs_dir)
     archive_args.add(archive_name)
     archive_args.add_all(object_files)
     ctx.actions.run(
@@ -96,11 +76,10 @@ def _haskell_library_compile(ctx):
         mnemonic = "GhcArLibrary",
         progress_message = "Archiving Haskell library: %s" % ctx.label.name,
     )
-    package_conf_name = "{outputs_dir}/{package_name}.conf".format(
-        outputs_dir = outputs_dir_name,
+    package_conf_name = "{package_name}.conf".format(
         package_name = package_name,
     )
-    package_conf = ctx.actions.declare_file(package_conf_name)
+    package_conf = ctx.actions.declare_file(package_conf_name, outputs_dir)
     package_conf_content = """
 name: {package_name}
 version: {package_version}
@@ -112,7 +91,7 @@ depends: {all_deps}
 """.format(
         package_name = package_name,
         package_version = PACKAGE_VERSION,
-        outputs_dir = outputs_dir_path,
+        outputs_dir = outputs_dir.path,
         all_deps = ", ".join(all_deps),
     )
     ctx.actions.write(
@@ -156,7 +135,8 @@ def _get_package_arg_for_dep(dep):
     return args
 
 def _haskell_impl(ctx):
-    script = ctx.actions.declare_file(ctx.label.name)
+    script_dir = ctx.actions.declare_directory(ctx.label.name)
+    script = ctx.actions.declare_file(ctx.label.name + "_repl", script_dir)
 
     tool_runfiles = []
     tool_dirs = []
