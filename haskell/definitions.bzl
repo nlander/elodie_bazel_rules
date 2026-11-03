@@ -26,23 +26,23 @@ def _haskell_compile_common_args(ctx, args):
     args.add_all(src_depset)
     return all_inputs, all_deps
 
-def _compile_output_file_from_module(ctx, module_name, outputs_dir, ext):
+def _compile_output_file_from_module(template_ctx, module_name, outputs_dir, ext):
     object_file_path = "{module_location}.{ext}".format(
         module_location = module_name.replace(".", "/"),
         ext = ext,
     )
-    object_file = ctx.template_ctx.declare_file(object_file_path, directory=outputs_dir)
+    object_file = template_ctx.declare_file(object_file_path, directory=outputs_dir)
     return object_file
 
-def _haskell_library_compile(ctx):
+def _haskell_library_compile(ctx, template_ctx):
     outputs_dir_name = ctx.label.name + "_out"
     outputs_dir = ctx.actions.declare_directory(outputs_dir_name)
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     args = ctx.actions.args()
     args.add("-c")
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
-    object_files = [_compile_output_file_from_module(ctx, module, outputs_dir, "o") for module in ctx.attr.modules]
-    hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir, "hi") for module in ctx.attr.modules]
+    object_files = [_compile_output_file_from_module(template_ctx, module, outputs_dir, "o") for module in ctx.attr.modules]
+    hi_files = [_compile_output_file_from_module(template_ctx, module, outputs_dir, "hi") for module in ctx.attr.modules]
     compile_outputs = []
     compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
@@ -63,7 +63,7 @@ def _haskell_library_compile(ctx):
     archive_name = "lib{pkg_name}.a".format(
         pkg_name = package_name,
     )
-    archive = ctx.template_ctx.declare_file(archive_name, directory=outputs_dir)
+    archive = template_ctx.declare_file(archive_name, directory=outputs_dir)
     archive_args.add(archive_name)
     archive_args.add_all(object_files)
     ctx.actions.run(
@@ -79,7 +79,7 @@ def _haskell_library_compile(ctx):
     package_conf_name = "{package_name}.conf".format(
         package_name = package_name,
     )
-    package_conf = ctx.template_ctx.declare_file(package_conf_name, directory=outputs_dir)
+    package_conf = template_ctx.declare_file(package_conf_name, directory=outputs_dir)
     package_conf_content = """
 name: {package_name}
 version: {package_version}
@@ -134,9 +134,9 @@ def _get_package_arg_for_dep(dep):
     )
     return args
 
-def _haskell_impl(ctx):
+def _haskell_impl(ctx, template_ctx):
     script_dir = ctx.actions.declare_directory(ctx.label.name)
-    script = ctx.template_ctx.declare_file(ctx.label.name + "_repl", directory=script_dir)
+    script = template_ctx.declare_file(ctx.label.name + "_repl", directory=script_dir)
 
     tool_runfiles = []
     tool_dirs = []
@@ -163,7 +163,7 @@ fi
     script_suffix = ""
     library_provider = []
     if ctx.attr._run_type == "haskell_library":
-        package_dir, package_name = _haskell_library_compile(ctx)
+        package_dir, package_name = _haskell_library_compile(ctx, template_ctx)
         outputs.append(package_dir)
         script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
             dir = _get_runfile_path(ctx, package_dir)
