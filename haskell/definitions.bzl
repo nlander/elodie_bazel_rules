@@ -63,7 +63,7 @@ def _haskell_library_compile(ctx):
     package_name = ctx.label.name.replace("_", "-")
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
-    archive_name = "{outputs_dir}/lib{pkg_name}.a".format(
+    archive_name = "{outputs_dir}/libHS{pkg_name}.a".format(
         outputs_dir = outputs_dir_name,
         pkg_name = package_name,
     )
