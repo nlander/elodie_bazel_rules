@@ -110,7 +110,6 @@ depends: {all_deps}
     package_db_arg = "--package-db={}".format(package_dir.path)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf)
-    package_command_args.add("--global-package-db")
     package_command_inputs = [package_conf, archive] + hi_files
     ctx.actions.run(
         inputs = depset(package_command_inputs),
