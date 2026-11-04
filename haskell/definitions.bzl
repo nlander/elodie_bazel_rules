@@ -90,8 +90,8 @@ name: {package_name}
 version: {package_version}
 id: {package_name}-{package_version}
 key: {package_name}-{package_version}
-import-dirs: ${{pkgroot}}/../{outputs_dir}
-library-dirs: ${{pkgroot}}/../{outputs_dir}
+import-dirs: ${{pkgroot}}/{outputs_dir}
+library-dirs: ${{pkgroot}}/{outputs_dir}
 hs-libraries: HS{package_name}
 depends: {all_deps}
 """.format(
