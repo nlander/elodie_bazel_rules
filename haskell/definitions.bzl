@@ -37,7 +37,7 @@ def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
 
 def _haskell_library_compile(ctx):
     outputs_dir_name = ctx.label.name + "_out"
-    path_parts = [ctx.bin_dir.path, ctx.label.package, outputs_dir_name]
+    path_parts = [ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package, outputs_dir_name]
     filtered_path_parts = [p for p in path_parts if p]
     outputs_dir_path = "/".join(filtered_path_parts)
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
