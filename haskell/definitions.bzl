@@ -89,14 +89,15 @@ def _haskell_library_compile(ctx):
 name: {package_name}
 version: {package_version}
 id: {package_name}-{package_version}
-import-dirs: {outputs_dir}
-library-dirs: {outputs_dir}
+key: {package_name}-{package_version}
+import-dirs: ${{pkgroot}}/../{outputs_dir}
+library-dirs: ${{pkgroot}}/../{outputs_dir}
 hs-libraries: HS{package_name}
 depends: {all_deps}
 """.format(
         package_name = package_name,
         package_version = PACKAGE_VERSION,
-        outputs_dir = outputs_dir_path,
+        outputs_dir = outputs_dir_name,
         all_deps = ", ".join(all_deps),
     )
     ctx.actions.write(
@@ -109,6 +110,7 @@ depends: {all_deps}
     package_db_arg = "--package-db={}".format(package_dir.path)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf)
+    package_command_args.add("--global-package-db")
     package_command_inputs = [package_conf, archive] + hi_files
     ctx.actions.run(
         inputs = depset(package_command_inputs),
