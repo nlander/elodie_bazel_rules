@@ -68,7 +68,7 @@ def _haskell_library_compile(ctx):
         pkg_name = package_name,
     )
     archive = ctx.actions.declare_file(archive_name)
-    archive_args.add(archive_name)
+    archive_args.add(archive)
     archive_args.add_all(object_files)
     ctx.actions.run(
         inputs = depset(object_files),
