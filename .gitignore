@@ -1,2 +1,6 @@
 .debug-files
 *.swp
+bazel-out
+bazel-bin
+bazel-elodie_bazel_rules
+bazel-testlogs
