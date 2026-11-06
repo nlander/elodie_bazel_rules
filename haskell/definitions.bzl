@@ -136,12 +136,13 @@ def _get_runfile_path(ctx, file):
     workspace_name = ctx.workspace_name if ctx.workspace_name else "_main"
     return "{}/{}".format(workspace_name, file.short_path)
 
-def _get_package_arg_for_dep(dep):
+def _get_package_arg_for_dep(ctx, dep):
     lib_info = dep[HaskellLibraryInfo]
     lib_dir = lib_info.pkg_dir
     lib_name = lib_info.pkg_name
+    runfile_path = _get_runfile_path(ctx, lib_dir)
     args = "-package-db $RUNFILES_DIR/{} -package {}".format(
-        lib_dir.short_path,
+        runfile_path,
         lib_name,
     )
     return args
@@ -191,8 +192,8 @@ fi
         lib_dir = lib_info.pkg_dir
         lib_modules = lib_info.modules
         lib_dependencies = lib_info.dependencies
-        package_args = [_get_package_arg_for_dep(dep) for dep in lib_dependencies]
-        package_args.append(_get_package_arg_for_dep(lib))
+        package_args = [_get_package_arg_for_dep(ctx, dep) for dep in lib_dependencies]
+        package_args.append(_get_package_arg_for_dep(ctx, lib))
         package_args_string = " ".join(package_args)
         lib_runpath = _get_runfile_path(ctx, lib_dir)
         ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
