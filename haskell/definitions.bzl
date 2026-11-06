@@ -187,6 +187,8 @@ fi
             dependencies = ctx.attr.deps,
         )]
         final_runfiles = final_runfiles.merge(ctx.runfiles(files=[package_dir]))
+        for dep in ctx.attr.deps:
+            final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
     elif ctx.attr._run_type == "haskell_repl":
         lib = ctx.attr.lib
         lib_info = lib[HaskellLibraryInfo]
