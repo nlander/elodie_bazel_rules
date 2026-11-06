@@ -107,7 +107,6 @@ depends: {all_deps}
     )
     package_command_args = ctx.actions.args()
     package_command_args.add("update")
-    package_command_args.add("--force")
     package_db_arg = "--package-db={}".format(package_dir.path)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf)
