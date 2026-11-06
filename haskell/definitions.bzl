@@ -41,8 +41,10 @@ def _haskell_library_compile(ctx):
     filtered_path_parts = [p for p in path_parts if p]
     outputs_dir_path = "/".join(filtered_path_parts)
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
+    package_name = ctx.label.name.replace("_", "-")
     args = ctx.actions.args()
     args.add("-c")
+    args.add("-package-name", package_name)
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
     object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
     hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
@@ -60,7 +62,6 @@ def _haskell_library_compile(ctx):
         mnemonic = "GhcCompileLibrary",
         progress_message = "Compiling Haskell library: %s" % ctx.label.name,
     )
-    package_name = ctx.label.name.replace("_", "-")
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
     archive_name = "{outputs_dir}/libHS{pkg_name}.a".format(
