@@ -171,9 +171,9 @@ fi
 {path_exports}
 """.format( path_exports = path_exports )
     outputs = [script]
-    runfiles_files = list(tool_runfiles)
     script_suffix = ""
     library_provider = []
+    final_runfiles = ctx.runfiles(files = tool_runfiles)
     if ctx.attr._run_type == "haskell_library":
         package_dir, package_name = _haskell_library_compile(ctx)
         outputs.append(package_dir)
@@ -195,9 +195,7 @@ fi
         package_args = [_get_package_arg_for_dep(ctx, dep) for dep in lib_dependencies]
         package_args.append(_get_package_arg_for_dep(ctx, lib))
         package_args_string = " ".join(package_args)
-        lib_runpath = _get_runfile_path(ctx, lib_dir)
         ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
-        runfiles_files.extend(lib[DefaultInfo].files.to_list())
         load_command = " ".join(lib_modules)
         script_suffix = """
 exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -e ":load {modules}"
@@ -206,7 +204,9 @@ exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -e ":load {modules}"
             dependencies = package_args_string,
             modules = load_command,
         )
-        runfiles_files.append(ctx.executable._ghc)
+        final_runfiles = final_runfiles.merge(lib[DefaultInfo].default_runfiles).merge(
+            ctx.runfiles(files = [ctx.executable._ghc])
+        )
 
     ctx.actions.write(
         output = script,
@@ -217,7 +217,7 @@ exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -e ":load {modules}"
     return [DefaultInfo(
         executable = script,
         files = depset(outputs),
-        runfiles = ctx.runfiles(files = runfiles_files),
+        runfiles = final_runfiles,
     )] + library_provider
 
 def _make_haskell_rule(run_type):
