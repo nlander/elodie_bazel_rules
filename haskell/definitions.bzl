@@ -44,7 +44,7 @@ def _haskell_library_compile(ctx):
     package_name = ctx.label.name.replace("_", "-")
     args = ctx.actions.args()
     args.add("-c")
-    args.add("-package-name", package_name)
+    args.add("-package-name", "{}-{}".format(package_name, PACKAGE_VERSION))
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
     object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
     hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
