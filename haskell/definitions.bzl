@@ -111,6 +111,9 @@ depends: {all_deps}
     package_command_args = ctx.actions.args()
     package_command_args.add("update")
     package_db_arg = "--package-db={}".format(package_dir.path)
+    if ctx.attr.deps:
+        for dep in ctx.attr.deps:
+            package_command_args.add("--package-db=" + dep[HaskellLibraryInfo].pkg_dir.path)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf)
     package_command_inputs = [package_conf, archive] + hi_files
