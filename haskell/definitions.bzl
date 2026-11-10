@@ -42,15 +42,27 @@ def _haskell_library_compile(ctx):
     outputs_dir_path = "/".join(filtered_path_parts)
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     package_name = ctx.label.name.replace("_", "-")
+    so_name = "{outputs_dir}/libHS{pkg_name}.so".format(
+        outputs_dir = outputs_dir_name,
+        pkg_name = package_name,
+    )
+    so_file = ctx.actions.declare_file(so_name)
     args = ctx.actions.args()
-    args.add("-c")
+    args.add("-shared")
+    args.add("-dynamic-too")
+    args.add("-o", so_file)
     args.add("-package-name", "{}-{}".format(package_name, PACKAGE_VERSION))
     all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
     object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
     hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
+    dyn_object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "dyn_o") for module in ctx.attr.modules]
+    dyn_hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "dyn_hi") for module in ctx.attr.modules]
     compile_outputs = []
     compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
+    compile_outputs.extend(dyn_hi_files)
+    compile_outputs.extend(dyn_object_files)
+    compile_outputs.append(so_file)
     args.add("-outputdir", outputs_dir_path)
     ctx.actions.run(
         inputs = depset(all_inputs),
@@ -93,6 +105,7 @@ id: {package_name}-{package_version}
 key: {package_name}-{package_version}
 import-dirs: ${{pkgroot}}/{outputs_dir}
 library-dirs: ${{pkgroot}}/{outputs_dir}
+dynamic-library-dirs: ${{pkgroot}}/{outputs_dir}
 hs-libraries: HS{package_name}
 exposed-modules: {modules}
 depends: {all_deps}
@@ -116,7 +129,7 @@ depends: {all_deps}
             package_command_args.add("--package-db=" + dep[HaskellLibraryInfo].pkg_dir.path)
     package_command_args.add(package_db_arg)
     package_command_args.add(package_conf)
-    package_command_inputs = [package_conf, archive] + hi_files
+    package_command_inputs = [package_conf, archive, so_file]
     ctx.actions.run(
         inputs = depset(package_command_inputs),
         outputs = [package_dir],
@@ -127,7 +140,8 @@ depends: {all_deps}
         mnemonic = "GhcPkgLibrary",
         progress_message = "Generating GHC package database: %s" % ctx.label.name,
     )
-    return package_dir, package_name
+    library_artifacts = hi_files + object_files + dyn_hi_files + dyn_object_files + [archive, so_file]
+    return package_dir, package_name, library_artifacts
 
 def _get_runfile_path(ctx, file):
     if file.short_path.startswith("../"):
@@ -175,7 +189,7 @@ fi
     library_provider = []
     final_runfiles = ctx.runfiles(files = tool_runfiles)
     if ctx.attr._run_type == "haskell_library":
-        package_dir, package_name = _haskell_library_compile(ctx)
+        package_dir, package_name, library_artifacts = _haskell_library_compile(ctx)
         outputs.append(package_dir)
         script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
             dir = _get_runfile_path(ctx, package_dir)
@@ -186,7 +200,7 @@ fi
             modules = ctx.attr.modules,
             dependencies = ctx.attr.deps,
         )]
-        final_runfiles = final_runfiles.merge(ctx.runfiles(files=[package_dir]))
+        final_runfiles = final_runfiles.merge(ctx.runfiles(files=[package_dir] + library_artifacts))
         for dep in ctx.attr.deps:
             final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
     elif ctx.attr._run_type == "haskell_repl":
