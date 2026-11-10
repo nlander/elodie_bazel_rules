@@ -200,14 +200,11 @@ fi
         package_args_string = " ".join(package_args)
         ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
         load_command = " ".join(lib_modules)
-        lib_runpath = _get_runfile_path(ctx, lib_dir)
-        outputs_arg = lib_runpath.replace("_pkg", "_out")
         script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -i{outputs_arg} -e ":load {modules}"
+exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -e ":load {modules}"
 """.format(
             ghc = ghc_runpath,
             dependencies = package_args_string,
-            outputs_arg = outputs_arg,
             modules = load_command,
         )
         final_runfiles = final_runfiles.merge(lib[DefaultInfo].default_runfiles).merge(
