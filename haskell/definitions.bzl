@@ -127,7 +127,7 @@ depends: {all_deps}
         mnemonic = "GhcPkgLibrary",
         progress_message = "Generating GHC package database: %s" % ctx.label.name,
     )
-    return package_dir, package_name, compile_outputs
+    return package_dir, package_name
 
 def _get_runfile_path(ctx, file):
     if file.short_path.startswith("../"):
@@ -175,7 +175,7 @@ fi
     library_provider = []
     final_runfiles = ctx.runfiles(files = tool_runfiles)
     if ctx.attr._run_type == "haskell_library":
-        package_dir, package_name, compile_outputs = _haskell_library_compile(ctx)
+        package_dir, package_name = _haskell_library_compile(ctx)
         outputs.append(package_dir)
         script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
             dir = _get_runfile_path(ctx, package_dir)
@@ -186,7 +186,7 @@ fi
             modules = ctx.attr.modules,
             dependencies = ctx.attr.deps,
         )]
-        final_runfiles = final_runfiles.merge(ctx.runfiles(files=[package_dir] + compile_outputs))
+        final_runfiles = final_runfiles.merge(ctx.runfiles(files=[package_dir]))
         for dep in ctx.attr.deps:
             final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
     elif ctx.attr._run_type == "haskell_repl":
