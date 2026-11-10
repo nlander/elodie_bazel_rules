@@ -203,7 +203,7 @@ fi
         lib_runpath = _get_runfile_path(ctx, lib_dir)
         outputs_arg = lib_runpath.replace("_pkg", "_out")
         script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -i{outputs_arg} -e ":load {modules}"
+exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -i$RUNFILES_DIR/{outputs_arg} -e ":load {modules}"
 """.format(
             ghc = ghc_runpath,
             dependencies = package_args_string,
