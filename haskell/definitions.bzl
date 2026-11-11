@@ -235,7 +235,7 @@ fi
         ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
         load_command = " ".join(lib_modules)
         script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies} -e ":module + {modules}"
+exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies}
 """.format(
             ghc = ghc_runpath,
             dependencies = package_args_string,
