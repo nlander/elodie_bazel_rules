@@ -79,9 +79,6 @@ def _haskell_library_compile(ctx):
     so_args.add_all(dyn_object_files)
     all_so_inputs = dyn_object_files
     all_so_inputs, all_so_deps = _haskell_compile_common_args(ctx, so_args, all_so_inputs)
-    if ctx.attr.deps_external:
-        for dep_ext in ctx.attr.deps_external:
-            so_args.add("-package", dep_ext)
     ctx.actions.run(
         inputs = depset(all_so_inputs),
         outputs = [so_file],
