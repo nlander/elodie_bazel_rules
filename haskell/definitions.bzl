@@ -75,6 +75,7 @@ def _haskell_library_compile(ctx):
     )
     so_args = ctx.actions.args()
     so_args.add("-shared")
+    so_args.add("-dynamic")
     so_args.add("-o", so_file)
     so_args.add_all(dyn_object_files)
     all_so_inputs = dyn_object_files
