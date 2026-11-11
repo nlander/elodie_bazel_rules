@@ -5,13 +5,9 @@ HaskellLibraryInfo = provider(
 
 PACKAGE_VERSION = "0.1.0"
 
-def _haskell_compile_common_args(ctx, args):
+def _haskell_compile_common_args(ctx, args, all_inputs):
     dep_dirs = []
-    src_depset = depset(ctx.files.srcs)
-    all_inputs = list(ctx.files.srcs)
     all_deps = list(ctx.attr.deps_external)
-    args.add("-O2")
-    args.add("-tmpdir", "/tmp")
     if ctx.attr.deps:
         for dep in ctx.attr.deps:
             dep_dir = dep[HaskellLibraryInfo].pkg_dir
@@ -23,7 +19,6 @@ def _haskell_compile_common_args(ctx, args):
                 package_version = PACKAGE_VERSION
             )
             all_deps.append(dep_id)
-    args.add_all(src_depset)
     return all_inputs, all_deps
 
 def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
@@ -48,21 +43,25 @@ def _haskell_library_compile(ctx):
     )
     so_file = ctx.actions.declare_file(so_name)
     args = ctx.actions.args()
-    args.add("-shared")
+    args.add("-c")
     args.add("-dynamic-too")
-    args.add("-o", so_file)
     args.add("-package-name", "{}-{}".format(package_name, PACKAGE_VERSION))
-    all_inputs, all_deps = _haskell_compile_common_args(ctx, args)
+    args.add("-fPIC")
+    args.add("-O2")
+    args.add("-tmpdir", "/tmp")
+    all_inputs = list(ctx.files.srcs)
+    all_inputs, all_deps = _haskell_compile_common_args(ctx, args, all_inputs)
     object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
     hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
     dyn_object_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "dyn_o") for module in ctx.attr.modules]
     dyn_hi_files = [_compile_output_file_from_module(ctx, module, outputs_dir_name, "dyn_hi") for module in ctx.attr.modules]
+    src_depset = depset(ctx.files.srcs)
+    args.add_all(src_depset)
     compile_outputs = []
     compile_outputs.extend(hi_files)
     compile_outputs.extend(object_files)
     compile_outputs.extend(dyn_hi_files)
     compile_outputs.extend(dyn_object_files)
-    compile_outputs.append(so_file)
     args.add("-outputdir", outputs_dir_path)
     ctx.actions.run(
         inputs = depset(all_inputs),
@@ -73,6 +72,24 @@ def _haskell_library_compile(ctx):
         execution_requirements = {"no-sandbox": "1"},
         mnemonic = "GhcCompileLibrary",
         progress_message = "Compiling Haskell library: %s" % ctx.label.name,
+    )
+    so_args = ctx.actions.args()
+    so_args.add("-shared")
+    so_args.add("-o", so_file)
+    so_args.add_all(dyn_object_files)
+    all_so_inputs = dyn_object_files
+    all_so_inputs, all_so_deps = _haskell_compile_common_args(ctx, so_args, all_so_inputs)
+    if ctx.attr.deps_external:
+        for dep_ext in ctx.attr.deps_external:
+            so_args.add("-package", dep_ext)
+    ctx.actions.run(
+        inputs = depset(all_so_inputs),
+        outputs = [so_file],
+        executable = ctx.executable._ghc,
+        arguments = [so_args],
+        execution_requirements = {"no-sandbox": "1"},
+        mnemonic = "GhcLinkSharedLibrary",
+        progress_message = "Linking shared Haskell library: %s" % ctx.label.name,
     )
     archive_args = ctx.actions.args()
     archive_args.add("rcs")
