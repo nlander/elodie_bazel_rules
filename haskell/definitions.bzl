@@ -4,6 +4,7 @@ HaskellLibraryInfo = provider(
 )
 
 PACKAGE_VERSION = "0.1.0"
+GHC_VERSION = "9.10.3"
 
 def _haskell_compile_common_args(ctx, args, all_inputs):
     dep_dirs = []
@@ -37,9 +38,10 @@ def _haskell_library_compile(ctx):
     outputs_dir_path = "/".join(filtered_path_parts)
     package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
     package_name = ctx.label.name.replace("_", "-")
-    so_name = "{outputs_dir}/libHS{pkg_name}.so".format(
+    so_name = "{outputs_dir}/libHS{pkg_name}-ghc{ghc_version}.so".format(
         outputs_dir = outputs_dir_name,
         pkg_name = package_name,
+        ghc_version = GHC_VERSION,
     )
     so_file = ctx.actions.declare_file(so_name)
     args = ctx.actions.args()
