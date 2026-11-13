@@ -31,7 +31,25 @@ def _compile_output_file_from_module(ctx, module_name, outputs_dir_name, ext):
     object_file = ctx.actions.declare_file(object_file_path)
     return object_file
 
-def _haskell_library_compile(ctx):
+def _get_runfile_path(ctx, file):
+    if file.short_path.startswith("../"):
+        relative_path = file.short_path.split("/", 2)[2]
+        return "{}/{}".format(file.owner.workspace_name, relative_path)
+    workspace_name = ctx.workspace_name if ctx.workspace_name else "_main"
+    return "{}/{}".format(workspace_name, file.short_path)
+
+def _get_package_arg_for_dep(ctx, dep):
+    lib_info = dep[HaskellLibraryInfo]
+    lib_dir = lib_info.pkg_dir
+    lib_name = lib_info.pkg_name
+    runfile_path = _get_runfile_path(ctx, lib_dir)
+    args = "-package-db $RUNFILES_DIR/{} -package {}".format(
+        runfile_path,
+        lib_name,
+    )
+    return args
+
+def _haskell_library_impl(ctx):
     outputs_dir_name = ctx.label.name + "_out"
     path_parts = [ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package, outputs_dir_name]
     filtered_path_parts = [p for p in path_parts if p]
@@ -160,30 +178,27 @@ depends: {all_deps}
         mnemonic = "GhcPkgLibrary",
         progress_message = "Generating GHC package database: %s" % ctx.label.name,
     )
-    library_artifacts = hi_files + object_files + dyn_hi_files + dyn_object_files + [archive, so_file]
-    return package_dir, package_name, library_artifacts
-
-def _get_runfile_path(ctx, file):
-    if file.short_path.startswith("../"):
-        relative_path = file.short_path.split("/", 2)[2]
-        return "{}/{}".format(file.owner.workspace_name, relative_path)
-    workspace_name = ctx.workspace_name if ctx.workspace_name else "_main"
-    return "{}/{}".format(workspace_name, file.short_path)
-
-def _get_package_arg_for_dep(ctx, dep):
-    lib_info = dep[HaskellLibraryInfo]
-    lib_dir = lib_info.pkg_dir
-    lib_name = lib_info.pkg_name
-    runfile_path = _get_runfile_path(ctx, lib_dir)
-    args = "-package-db $RUNFILES_DIR/{} -package {}".format(
-        runfile_path,
-        lib_name,
+    library_artifacts = hi_files + object_files + dyn_hi_files + dyn_object_files + [archive, so_file, package_dir]
+    script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
+        dir = _get_runfile_path(ctx, package_dir)
     )
-    return args
+    library_provider = [HaskellLibraryInfo(
+        pkg_dir = package_dir,
+        pkg_name = package_name,
+        modules = ctx.attr.modules,
+        dependencies = ctx.attr.deps,
+    )]
+    final_runfiles = ctx.runfiles()
+    final_runfiles = final_runfiles.merge(ctx.runfiles(files=library_artifacts))
+    for dep in ctx.attr.deps:
+        final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
+    return [DefaultInfo(
+        files = depset(library_artifacts),
+        runfiles = final_runfiles,
+    )] + library_provider
 
-def _haskell_impl(ctx):
+def _haskell_repl_impl(ctx):
     script = ctx.actions.declare_file(ctx.label.name)
-
     tool_runfiles = []
     tool_dirs = []
     for tool in ctx.files.tools:
@@ -201,69 +216,63 @@ if [ -z "$RUNFILES_DIR" ]; then
     RUNFILES_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
   fi
 fi
-
 {path_exports}
 """.format( path_exports = path_exports )
-    outputs = [script]
     script_suffix = ""
-    library_provider = []
     final_runfiles = ctx.runfiles(files = tool_runfiles)
-    if ctx.attr._run_type == "haskell_library":
-        package_dir, package_name, library_artifacts = _haskell_library_compile(ctx)
-        outputs.append(package_dir)
-        script_suffix = "echo 'Librería compilada. Las salidas (.hi y .o) están en: $RUNFILES_DIR/{dir}'\n".format(
-            dir = _get_runfile_path(ctx, package_dir)
-        )
-        library_provider = [HaskellLibraryInfo(
-            pkg_dir = package_dir,
-            pkg_name = package_name,
-            modules = ctx.attr.modules,
-            dependencies = ctx.attr.deps,
-        )]
-        final_runfiles = final_runfiles.merge(ctx.runfiles(files=[package_dir] + library_artifacts))
-        for dep in ctx.attr.deps:
-            final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
-    elif ctx.attr._run_type == "haskell_repl":
-        lib = ctx.attr.lib
-        lib_info = lib[HaskellLibraryInfo]
-        lib_dir = lib_info.pkg_dir
-        lib_modules = lib_info.modules
-        lib_dependencies = lib_info.dependencies
-        package_args = [_get_package_arg_for_dep(ctx, dep) for dep in lib_dependencies]
-        package_args.append(_get_package_arg_for_dep(ctx, lib))
-        package_args_string = " ".join(package_args)
-        ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
-        load_command = " ".join(lib_modules)
-        script_suffix = """
+    lib = ctx.attr.lib
+    lib_info = lib[HaskellLibraryInfo]
+    lib_dir = lib_info.pkg_dir
+    lib_modules = lib_info.modules
+    lib_dependencies = lib_info.dependencies
+    package_args = [_get_package_arg_for_dep(ctx, dep) for dep in lib_dependencies]
+    package_args.append(_get_package_arg_for_dep(ctx, lib))
+    package_args_string = " ".join(package_args)
+    ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
+    script_suffix = """
 exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies}
 """.format(
-            ghc = ghc_runpath,
-            dependencies = package_args_string,
-            modules = load_command,
-        )
-        final_runfiles = final_runfiles.merge(lib[DefaultInfo].default_runfiles).merge(
-            ctx.runfiles(files = [ctx.executable._ghc])
-        )
-
+        ghc = ghc_runpath,
+        dependencies = package_args_string,
+    )
+    final_runfiles = final_runfiles.merge(lib[DefaultInfo].default_runfiles).merge(
+        ctx.runfiles(files = [ctx.executable._ghc])
+    )
     ctx.actions.write(
         output = script,
         content = common_script_content + script_suffix,
         is_executable = True,
     )
-
     return [DefaultInfo(
         executable = script,
-        files = depset(outputs),
+        files = depset([script]),
         runfiles = final_runfiles,
-    )] + library_provider
+    )]
 
-def _make_haskell_rule(run_type):
+def _make_haskell_repl_rule():
     attrs = {
         "tools": attr.label_list(allow_files = True,
             cfg = "target",
             default = [],
         ),
-        "_run_type": attr.string(default = run_type),
+        "_ghc": attr.label(
+            default = Label("@nix_ghc//:ghc"),
+            executable = True,
+            cfg = "target",
+        ),
+        "lib": attr.label(
+            providers = [HaskellLibraryInfo],
+            mandatory = True,
+        ),
+    }
+    return rule(
+        implementation = _haskell_repl_impl,
+        executable = True,
+        attrs = attrs,
+    )
+
+def _make_haskell_library_rule():
+    attrs = {
         "_ghc": attr.label(
             default = Label("@nix_ghc//:ghc"),
             executable = True,
@@ -279,19 +288,19 @@ def _make_haskell_rule(run_type):
             executable = True,
             cfg = "target",
         ),
+        "srcs": attr.label_list(allow_files = [".hs"]),
+        "modules": attr.string_list(default = []),
+        "deps": attr.label_list(
+            providers = [HaskellLibraryInfo],
+            default = [],
+        ),
+        "deps_external": attr.string_list(default = []),
     }
-    if run_type == "haskell_library":
-        attrs["srcs"] = attr.label_list(allow_files = [".hs"])
-        attrs["modules"] = attr.string_list(default = [])
-        attrs["deps"] = attr.label_list(providers = [HaskellLibraryInfo], default = [])
-        attrs["deps_external"] = attr.string_list(default = [])
-    elif run_type == "haskell_repl":
-        attrs["lib"] = attr.label(providers = [HaskellLibraryInfo], mandatory = True)
     return rule(
-        implementation = _haskell_impl,
-        executable = (run_type != "haskell_library"),
+        implementation = _haskell_library_impl,
+        executable = False,
         attrs = attrs,
     )
 
-haskell_repl = _make_haskell_rule("haskell_repl")
-haskell_library = _make_haskell_rule("haskell_library")
+haskell_repl = _make_haskell_repl_rule()
+haskell_library = _make_haskell_library_rule()
