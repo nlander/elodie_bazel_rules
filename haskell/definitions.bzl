@@ -1,15 +1,31 @@
 HaskellLibraryInfo = provider(
-    doc = "Información de una librería de Haskell compilada",
-    fields = ["pkg_dir", "pkg_name", "modules", "dependencies"],
+    doc = "Información de una librería de Haskell",
+    fields = [
+        "sources",
+        "modules",
+        "dependencies",
+        "external_dependencies",
+    ],
+)
+
+HaskellPackagedLibrary = provider(
+    doc = "Paquete compilado y enlazado de una librería de Haskell",
+    fields = [
+        "pkg_dir",
+        "pkg_name",
+        "modules",
+        "dependencies"
+    ]
 )
 
 PACKAGE_VERSION = "0.1.0"
 GHC_VERSION = "9.10.3"
 
-def _ghc_common_args(ctx, args, all_inputs):
-    all_deps = list(ctx.attr.deps_external)
-    if ctx.attr.deps:
-        for dep in ctx.attr.deps:
+def _ghc_common_args(library, args, all_inputs):
+    lib_info = library[HaskellLibraryInfo]
+    all_deps = list(lib_info.external_dependencies)
+    if lib_info.dependencies:
+        for dep in lib_info.dependencies:
             dep_dir = dep[HaskellLibraryInfo].pkg_dir
             args.add("-package-db", dep_dir.path)
             args.add("-package", dep[HaskellLibraryInfo].pkg_name)
@@ -49,6 +65,16 @@ def _get_package_arg_for_dep(ctx, dep):
     return args
 
 def _haskell_library_impl(ctx):
+    library_provider = [HaskellLibraryInfo(
+        sources = ctx.attr.sources,
+        modules = ctx.attr.modules,
+        dependencies = ctx.attr.dependencies,
+        external_dependencies = ctx.attr.external_dependencies,
+    )]
+    return library_provider
+
+def _haskell_package_impl(ctx):
+    library = ctx.attr.library
     outputs_dir_name = ctx.label.name + "_out"
     path_parts = [ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package, outputs_dir_name]
     filtered_path_parts = [p for p in path_parts if p]
@@ -69,11 +95,11 @@ def _haskell_library_impl(ctx):
     compilation_args.add("-O2")
     compilation_args.add("-tmpdir", "/tmp")
     all_inputs = list(ctx.files.srcs)
-    all_inputs, all_deps = _ghc_common_args(ctx, compilation_args, all_inputs)
-    object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in ctx.attr.modules]
-    hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in ctx.attr.modules]
-    dyn_object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_o") for module in ctx.attr.modules]
-    dyn_hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_hi") for module in ctx.attr.modules]
+    all_inputs, all_deps = _ghc_common_args(library, compilation_args, all_inputs)
+    object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in library.modules]
+    hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in library.modules]
+    dyn_object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_o") for module in library.modules]
+    dyn_hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_hi") for module in library.modules]
     src_depset = depset(ctx.files.srcs)
     compilation_args.add_all(src_depset)
     compilation_outputs = []
@@ -98,9 +124,9 @@ def _haskell_library_impl(ctx):
     linking_args.add("-o", shared_object_file)
     linking_args.add_all(dyn_object_files)
     all_linking_inputs = dyn_object_files
-    all_linking_inputs, all_linking_deps = _ghc_common_args(ctx, linking_args, all_linking_inputs)
-    if ctx.attr.deps_external:
-        for dep_ext in ctx.attr.deps_external:
+    all_linking_inputs, all_linking_deps = _ghc_common_args(library, linking_args, all_linking_inputs)
+    if library.external_dependencies:
+        for dep_ext in library.external_dependencies:
             linking_args.add("-package-id", dep_ext)
     ctx.actions.run(
         inputs = depset(all_linking_inputs),
@@ -150,7 +176,7 @@ depends: {all_deps}
         package_name = package_name,
         package_version = PACKAGE_VERSION,
         outputs_dir = outputs_dir_name,
-        modules = " ".join(ctx.attr.modules),
+        modules = " ".join(library.modules),
         all_deps = " ".join(all_deps),
     )
     ctx.actions.write(
@@ -161,8 +187,8 @@ depends: {all_deps}
     packaging_args = ctx.actions.args()
     packaging_args.add("update")
     package_db_arg = "--package-db={}".format(package_dir.path)
-    if ctx.attr.deps:
-        for dep in ctx.attr.deps:
+    if library.dependencies:
+        for dep in library.dependencies:
             packaging_args.add("--package-db=" + dep[HaskellLibraryInfo].pkg_dir.path)
     packaging_args.add(package_db_arg)
     packaging_args.add(package_conf)
@@ -178,15 +204,15 @@ depends: {all_deps}
         progress_message = "Generating GHC package database: %s" % ctx.label.name,
     )
     library_artifacts = hi_files + object_files + dyn_hi_files + dyn_object_files + [archive_file, shared_object_file, package_dir]
-    library_provider = [HaskellLibraryInfo(
+    library_provider = [HaskellPackagedLibrary(
         pkg_dir = package_dir,
         pkg_name = package_name,
-        modules = ctx.attr.modules,
-        dependencies = ctx.attr.deps,
+        modules = library.modules,
+        dependencies = library.dependencies,
     )]
     final_runfiles = ctx.runfiles()
     final_runfiles = final_runfiles.merge(ctx.runfiles(files=library_artifacts))
-    for dep in ctx.attr.deps:
+    for dep in library.dependencies:
         final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
     return [DefaultInfo(
         files = depset(library_artifacts),
@@ -253,9 +279,9 @@ def _make_haskell_repl_rule():
             executable = True,
             cfg = "target",
         ),
-        "lib": attr.label(
+        "dependencies": attr.label_list(
             providers = [HaskellLibraryInfo],
-            mandatory = True,
+            default = [],
         ),
     }
     return rule(
@@ -264,7 +290,7 @@ def _make_haskell_repl_rule():
         attrs = attrs,
     )
 
-def _make_haskell_library_rule():
+def _make_haskell_package_rule():
     attrs = {
         "_ghc": attr.label(
             default = Label("@nix_ghc//:ghc"),
@@ -281,13 +307,26 @@ def _make_haskell_library_rule():
             executable = True,
             cfg = "target",
         ),
-        "srcs": attr.label_list(allow_files = [".hs"]),
-        "modules": attr.string_list(default = []),
-        "deps": attr.label_list(
+        "library": attr.label(
             providers = [HaskellLibraryInfo],
+            mandatory = True,
+        ),
+    }
+    return rule(
+        implementation = _haskell_package_impl,
+        executable = False,
+        attrs = attrs,
+    )
+
+def _make_haskell_library_rule():
+    attrs = {
+        "sources": attr.label_list(allow_files = [".hs"]),
+        "modules": attr.string_list(default = []),
+        "dependencies": attr.label_list(
+            providers = [HaskellPackagedLibrary],
             default = [],
         ),
-        "deps_external": attr.string_list(default = []),
+        "external_dependencies": attr.string_list(default = []),
     }
     return rule(
         implementation = _haskell_library_impl,
