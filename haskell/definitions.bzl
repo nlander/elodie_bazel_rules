@@ -73,19 +73,19 @@ def _get_package_arg_for_dep(ctx, dep):
     return args
 
 def _haskell_library_impl(ctx):
-    all_dependencies = ctx.attr.dependencies
+    all_dependencies = list(ctx.attr.dependencies)
     if ctx.attr.dependencies:
         for dep in ctx.attr.dependencies:
             transitive_deps = dep[HaskellPackagedLibrary].dependencies
             all_dependencies.extend(transitive_deps)
     library_provider = [HaskellLibraryInfo(
-        sources = ctx.attr.sources,
+        sources = ctx.files.sources,
         modules = ctx.attr.modules,
         dependencies = all_dependencies,
         external_dependencies = ctx.attr.external_dependencies,
     )]
     final_runfiles = ctx.runfiles()
-    final_runfiles = final_runfiles.merge(ctx.runfiles(files=ctx.attr.sources))
+    final_runfiles = final_runfiles.merge(ctx.runfiles(files=ctx.files.sources))
     for dep in all_dependencies:
         final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
     return [DefaultInfo(
@@ -262,15 +262,15 @@ fi
     final_runfiles = ctx.runfiles(files = tool_runfiles)
     source_dependencies = ctx.attr.dependencies
     source_dep_names = [dep.label.name for dep in source_dependencies]
-    precompiled_dependencies = []
-    if source_dependencies:
-        for dep in source_dependencies:
-            if dep.dependencies:
-                for transitive_dep in dep.dependencies:
-                    trans_pkg_name = transitive_dep.label.name
-                    trans_name = trans_pkg_name.removesuffix(PKG_SUFFIX)
-                    if trans_name not in source_dep_names and trans_name not in precompiled_dependencies:
-                        precompiled_dependencies.append(transitive_dep)
+    precompiled_dependencies_set = depset()
+    for dep in source_dependencies:
+        lib_info = dep[HaskellLibraryInfo]
+        for transitive_dep in lib_info.dependencies:
+            trans_pkg_name = transitive_dep.label.name
+            trans_name = trans_pkg_name.removesuffix(PKG_SUFFIX)
+            if trans_name not in source_dep_names:
+                precompiled_dependencies_set = depset(transitive = [precompiled_dependencies_set, depset([transitive_dep])])
+    precompiled_dependencies = precompiled_dependencies_set.to_list()
     package_args = [_get_package_arg_for_dep(ctx, dep) for dep in precompiled_dependencies]
     package_args_string = " ".join(package_args)
     source_args = [_get_source_arg_for_dep(ctx, dep) for dep in source_dependencies]
