@@ -115,13 +115,13 @@ def _haskell_package_impl(ctx):
     compilation_args.add("-fPIC")
     compilation_args.add("-O2")
     compilation_args.add("-tmpdir", "/tmp")
-    all_inputs = list(library.sources)
+    all_inputs = list(library[HaskellLibraryInfo].sources)
     all_inputs, all_deps = _ghc_common_args(library, compilation_args, all_inputs)
-    object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in library.modules]
-    hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in library.modules]
-    dyn_object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_o") for module in library.modules]
-    dyn_hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_hi") for module in library.modules]
-    src_depset = depset(library.sources)
+    object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in library[HaskellLibraryInfo].modules]
+    hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in library[HaskellLibraryInfo].modules]
+    dyn_object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_o") for module in library[HaskellLibraryInfo].modules]
+    dyn_hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_hi") for module in library[HaskellLibraryInfo].modules]
+    src_depset = depset(library[HaskellLibraryInfo].sources)
     compilation_args.add_all(src_depset)
     compilation_outputs = []
     compilation_outputs.extend(hi_files)
@@ -146,8 +146,8 @@ def _haskell_package_impl(ctx):
     linking_args.add_all(dyn_object_files)
     all_linking_inputs = dyn_object_files
     all_linking_inputs, all_linking_deps = _ghc_common_args(library, linking_args, all_linking_inputs)
-    if library.external_dependencies:
-        for dep_ext in library.external_dependencies:
+    if library[HaskellLibraryInfo].external_dependencies:
+        for dep_ext in library[HaskellLibraryInfo].external_dependencies:
             linking_args.add("-package-id", dep_ext)
     ctx.actions.run(
         inputs = depset(all_linking_inputs),
@@ -197,7 +197,7 @@ depends: {all_deps}
         package_name = package_name,
         package_version = PACKAGE_VERSION,
         outputs_dir = outputs_dir_name,
-        modules = " ".join(library.modules),
+        modules = " ".join(library[HaskellLibraryInfo].modules),
         all_deps = " ".join(all_deps),
     )
     ctx.actions.write(
@@ -208,8 +208,8 @@ depends: {all_deps}
     packaging_args = ctx.actions.args()
     packaging_args.add("update")
     package_db_arg = "--package-db={}".format(package_dir.path)
-    if library.dependencies:
-        for dep in library.dependencies:
+    if library[HaskellLibraryInfo].dependencies:
+        for dep in library[HaskellLibraryInfo].dependencies:
             dep_pkg = dep[HaskellPackagedLibrary]
             packaging_args.add("--package-db=" + dep_pkg.pkg_dir.path)
     packaging_args.add(package_db_arg)
@@ -229,12 +229,12 @@ depends: {all_deps}
     library_provider = [HaskellPackagedLibrary(
         pkg_dir = package_dir,
         pkg_name = package_name,
-        modules = library.modules,
-        dependencies = library.dependencies,
+        modules = library[HaskellLibraryInfo].modules,
+        dependencies = library[HaskellLibraryInfo].dependencies,
     )]
     final_runfiles = ctx.runfiles()
     final_runfiles = final_runfiles.merge(ctx.runfiles(files=library_artifacts))
-    for dep in library.dependencies:
+    for dep in library[HaskellLibraryInfo].dependencies:
         final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
     return [DefaultInfo(
         files = depset(library_artifacts),
