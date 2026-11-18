@@ -8,5 +8,5 @@ haskell_library(
 
 haskell_repl(
     name = "test_repl",
-    lib = "test",
+    dependencies = ["test"],
 )

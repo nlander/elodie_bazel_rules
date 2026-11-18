@@ -20,6 +20,7 @@ HaskellPackagedLibrary = provider(
 
 PACKAGE_VERSION = "0.1.0"
 GHC_VERSION = "9.10.3"
+PKG_SUFFIX = "_pkg"
 
 def _ghc_common_args(library, args, all_inputs):
     lib_info = library[HaskellLibraryInfo]
@@ -53,8 +54,15 @@ def _get_runfile_path(ctx, file):
     workspace_name = ctx.workspace_name if ctx.workspace_name else "_main"
     return "{}/{}".format(workspace_name, file.short_path)
 
-def _get_package_arg_for_dep(ctx, dep):
+def _get_source_arg_for_dep(ctx, dep):
     lib_info = dep[HaskellLibraryInfo]
+    lib_sources = lib_info.sources
+    runfile_paths = [_get_runfile_path(ctx, src) for src in lib_sources]
+    args = " ".join(runfile_paths)
+    return args
+
+def _get_package_arg_for_dep(ctx, dep):
+    lib_info = dep[HaskellPackagedLibrary]
     lib_dir = lib_info.pkg_dir
     lib_name = lib_info.pkg_name
     runfile_path = _get_runfile_path(ctx, lib_dir)
@@ -65,13 +73,24 @@ def _get_package_arg_for_dep(ctx, dep):
     return args
 
 def _haskell_library_impl(ctx):
+    all_dependencies = ctx.attr.dependencies
+    if ctx.attr.dependencies:
+        for dep in ctx.attr.dependencies:
+            transitive_deps = dep[HaskellPackagedLibrary].dependencies
+            all_dependencies.extend(transitive_deps)
     library_provider = [HaskellLibraryInfo(
         sources = ctx.attr.sources,
         modules = ctx.attr.modules,
-        dependencies = ctx.attr.dependencies,
+        dependencies = all_dependencies,
         external_dependencies = ctx.attr.external_dependencies,
     )]
-    return library_provider
+    final_runfiles = ctx.runfiles()
+    final_runfiles = final_runfiles.merge(ctx.runfiles(files=ctx.attr.sources))
+    for dep in all_dependencies:
+        final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
+    return [DefaultInfo(
+        runfiles = final_runfiles,
+    )] + library_provider
 
 def _haskell_package_impl(ctx):
     library = ctx.attr.library
@@ -79,7 +98,7 @@ def _haskell_package_impl(ctx):
     path_parts = [ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package, outputs_dir_name]
     filtered_path_parts = [p for p in path_parts if p]
     outputs_dir_path = "/".join(filtered_path_parts)
-    package_dir = ctx.actions.declare_directory(ctx.label.name + "_pkg")
+    package_dir = ctx.actions.declare_directory(ctx.label.name + PKG_SUFFIX)
     package_name = ctx.label.name.replace("_", "-")
     shared_object_name = "{outputs_dir}/libHS{pkg_name}-ghc{ghc_version}.so".format(
         outputs_dir = outputs_dir_name,
@@ -241,20 +260,34 @@ fi
 {path_exports}
 """.format( path_exports = path_exports )
     final_runfiles = ctx.runfiles(files = tool_runfiles)
-    lib = ctx.attr.lib
-    lib_info = lib[HaskellLibraryInfo]
-    lib_dependencies = lib_info.dependencies
-    package_args = [_get_package_arg_for_dep(ctx, dep) for dep in lib_dependencies]
-    package_args.append(_get_package_arg_for_dep(ctx, lib))
+    source_dependencies = ctx.attr.dependencies
+    source_dep_names = [dep.label.name for dep in source_dependencies]
+    precompiled_dependencies = []
+    if source_dependencies:
+        for dep in source_dependencies:
+            if dep.dependencies:
+                for transitive_dep in dep.dependencies:
+                    trans_pkg_name = transitive_dep.label.name
+                    trans_name = trans_pkg_name.removesuffix(PKG_SUFFIX)
+                    if trans_name not in source_dep_names and trans_name not in precompiled_dependencies:
+                        precompiled_dependencies.append(transitive_dep)
+    package_args = [_get_package_arg_for_dep(ctx, dep) for dep in precompiled_dependencies]
     package_args_string = " ".join(package_args)
+    source_args = [_get_source_arg_for_dep(ctx, dep) for dep in source_dependencies]
+    source_args_string = " ".join(source_args)
     ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
     script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {dependencies}
+exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_dependencies}
 """.format(
         ghc = ghc_runpath,
-        dependencies = package_args_string,
+        precompiled_dependencies = package_args_string,
+        source_dependencies = source_args_string,
     )
-    final_runfiles = final_runfiles.merge(lib[DefaultInfo].default_runfiles).merge(
+    for dep in source_dependencies:
+        final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
+    for dep in precompiled_dependencies:
+        final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
+    final_runfiles = final_runfiles.merge(
         ctx.runfiles(files = [ctx.executable._ghc])
     )
     ctx.actions.write(
@@ -334,5 +367,20 @@ def _make_haskell_library_rule():
         attrs = attrs,
     )
 
+def haskell_library(name, srcs, modules, deps = [], external_deps = [], **kwargs):
+    haskell_library_info(
+        name = name,
+        sources = srcs,
+        dependencies = deps,
+        external_dependencies = external_deps,
+        **kwargs
+    )
+    haskell_package(
+        name = name + PKG_SUFFIX,
+        library = ":" + name,
+        **kwargs
+    )
+
 haskell_repl = _make_haskell_repl_rule()
-haskell_library = _make_haskell_library_rule()
+haskell_library_info = _make_haskell_library_rule()
+haskell_package = _make_haskell_package_rule()
