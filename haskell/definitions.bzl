@@ -27,12 +27,14 @@ def _ghc_common_args(library, args, all_inputs):
     all_deps = list(lib_info.external_dependencies)
     if lib_info.dependencies:
         for dep in lib_info.dependencies:
-            dep_dir = dep[HaskellLibraryInfo].pkg_dir
+            dep_pkg = dep[HaskellPackagedLibrary]
+            dep_dir = dep_pkg.pkg_dir
+            dep_name = dep_pkg.pkg_name
             args.add("-package-db", dep_dir.path)
-            args.add("-package", dep[HaskellLibraryInfo].pkg_name)
+            args.add("-package", dep_name)
             all_inputs.append(dep_dir)
             dep_id = "{package_name}-{package_version}".format(
-                package_name = dep[HaskellLibraryInfo].pkg_name,
+                package_name = dep_name,
                 package_version = PACKAGE_VERSION
             )
             all_deps.append(dep_id)
@@ -208,7 +210,8 @@ depends: {all_deps}
     package_db_arg = "--package-db={}".format(package_dir.path)
     if library.dependencies:
         for dep in library.dependencies:
-            packaging_args.add("--package-db=" + dep[HaskellLibraryInfo].pkg_dir.path)
+            dep_pkg = dep[HaskellPackagedLibrary]
+            packaging_args.add("--package-db=" + dep_pkg.pkg_dir.path)
     packaging_args.add(package_db_arg)
     packaging_args.add(package_conf)
     packaging_inputs = [package_conf, archive_file, shared_object_file]
@@ -367,12 +370,46 @@ def _make_haskell_library_rule():
         attrs = attrs,
     )
 
-def haskell_library(name, srcs, modules, deps = [], external_deps = [], **kwargs):
+def haskell_library(name, sources, modules, dependencies = [], external_dependencies = [], **kwargs):
+    dependency_names = []
+    for dep in dependencies:
+        label = Label(dep)
+        name_with_suffix = label.name + PKG_SUFFIX
+        if label.workspace_name == "":
+            if label.package == "":
+               dependency_names.append(
+                    ":{name}".format(
+                        name = name_with_suffix,
+                    )
+                )
+            else:
+               dependency_names.append(
+                    "//{package}:{name}".format(
+                        package = label.package,
+                        name = name_with_suffix,
+                    )
+                )
+        else:
+            if label.package == "":
+               dependency_names.append(
+                    "@{workspace}//:{name}".format(
+                        workspace = label.workspace_name,
+                        name = name_with_suffix,
+                    )
+                )
+            else:
+                dependency_names.append(
+                    "@{workspace}//{package}:{name}".format(
+                        workspace = label.workspace_name,
+                        package = label.package,
+                        name = name_with_suffix,
+                    )
+                )
     haskell_library_info(
         name = name,
-        sources = srcs,
-        dependencies = deps,
-        external_dependencies = external_deps,
+        sources = sources,
+        dependencies = dependency_names,
+        external_dependencies = external_dependencies,
         **kwargs
     )
     haskell_package(

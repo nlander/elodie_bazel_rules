@@ -2,7 +2,7 @@ load("//haskell:definitions.bzl", "haskell_library", "haskell_repl")
 
 haskell_library(
     name = "test",
-    srcs = ["//haskell:dummy.hs"],
+    sources = ["//haskell:dummy.hs"],
     modules = ["Dummy"],
 )
 
