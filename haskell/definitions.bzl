@@ -373,38 +373,12 @@ def _make_haskell_library_rule():
 def haskell_library(name, sources, modules, dependencies = [], external_dependencies = [], **kwargs):
     dependency_names = []
     for dep in dependencies:
-        label = Label(dep)
-        name_with_suffix = label.name + PKG_SUFFIX
-        if label.workspace_name == "":
-            if label.package == "":
-               dependency_names.append(
-                    ":{name}".format(
-                        name = name_with_suffix,
-                    )
-                )
-            else:
-               dependency_names.append(
-                    "//{package}:{name}".format(
-                        package = label.package,
-                        name = name_with_suffix,
-                    )
-                )
+        dep_str = str(dep)
+        if ":" in dep_str:
+            pkg_part, target_part = dep_str.rsplit(":", 1)
+            dependency_names.append("{}:{}{}".format(pkg_part, target_part, PKG_SUFFIX))
         else:
-            if label.package == "":
-               dependency_names.append(
-                    "@{workspace}//:{name}".format(
-                        workspace = label.workspace_name,
-                        name = name_with_suffix,
-                    )
-                )
-            else:
-                dependency_names.append(
-                    "@{workspace}//{package}:{name}".format(
-                        workspace = label.workspace_name,
-                        package = label.package,
-                        name = name_with_suffix,
-                    )
-                )
+            dependency_names.append("{}{}".format(dep_str, PKG_SUFFIX))
     haskell_library_info(
         name = name,
         sources = sources,
