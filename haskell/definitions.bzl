@@ -115,13 +115,13 @@ def _haskell_package_impl(ctx):
     compilation_args.add("-fPIC")
     compilation_args.add("-O2")
     compilation_args.add("-tmpdir", "/tmp")
-    all_inputs = list(ctx.files.srcs)
+    all_inputs = list(library.sources)
     all_inputs, all_deps = _ghc_common_args(library, compilation_args, all_inputs)
     object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "o") for module in library.modules]
     hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "hi") for module in library.modules]
     dyn_object_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_o") for module in library.modules]
     dyn_hi_files = [_compilation_output_file_from_module(ctx, module, outputs_dir_name, "dyn_hi") for module in library.modules]
-    src_depset = depset(ctx.files.srcs)
+    src_depset = depset(library.sources)
     compilation_args.add_all(src_depset)
     compilation_outputs = []
     compilation_outputs.extend(hi_files)
