@@ -382,6 +382,7 @@ def haskell_library(name, sources, modules, dependencies = [], external_dependen
     haskell_library_info(
         name = name,
         sources = sources,
+        modules = modules,
         dependencies = dependency_names,
         external_dependencies = external_dependencies,
         **kwargs
