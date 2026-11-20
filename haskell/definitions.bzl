@@ -284,7 +284,7 @@ fi
     ghci_script_arg = ""
     if ctx.file.ghci_script:
         ghci_script_path = _get_runfile_path(ctx, ctx.file.ghci_script)
-        ghci_script_arg = '-e ":script $RUNFILES_DIR/{}"'.format(ghci_script_path)
+        ghci_script_arg = "-ghci-script \"$RUNFILES_DIR/{}\"".format(ghci_script_path)
         final_runfiles = final_runfiles.merge(ctx.runfiles(files = [ctx.file.ghci_script]))
     script_suffix = """
 exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_dependencies} {ghci_script_arg}
