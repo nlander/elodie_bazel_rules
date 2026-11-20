@@ -289,12 +289,12 @@ fi
 """.format(ghci_script_path)
         final_runfiles = final_runfiles.merge(ctx.runfiles(files = [ctx.file.ghci_script]))
     script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {ghci_script_arg} {precompiled_dependencies} {source_dependencies}
+exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_dependencies} {ghci_script_arg}
 """.format(
         ghc = ghc_runpath,
-        ghci_script_arg = ghci_script_arg,
         precompiled_dependencies = package_args_string,
         source_dependencies = source_args_string,
+        ghci_script_arg = ghci_script_arg,
     )
     for dep in source_dependencies:
         final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
