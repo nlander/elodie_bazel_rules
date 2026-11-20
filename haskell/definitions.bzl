@@ -60,7 +60,8 @@ def _get_source_arg_for_dep(ctx, dep):
     lib_info = dep[HaskellLibraryInfo]
     lib_sources = lib_info.sources
     runfile_paths = [_get_runfile_path(ctx, src) for src in lib_sources]
-    args = " ".join(runfile_paths)
+    source_args = ["$RUNFILES_DIR/{}".format(path) for path in runfile_paths]
+    args = " ".join(source_args)
     return args
 
 def _get_package_arg_for_dep(ctx, dep):
