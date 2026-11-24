@@ -278,22 +278,31 @@ fi
     precompiled_dependencies = precompiled_dependencies_set.to_list()
     package_args = [_get_package_arg_for_dep(ctx, dep) for dep in precompiled_dependencies]
     package_args_string = " ".join(package_args)
-    source_args = [_get_source_arg_for_dep(ctx, dep) for dep in source_dependencies]
-    source_args_string = " ".join(source_args)
+    source_args_string = ""
+    if source_dependencies:
+        source_args = [_get_source_arg_for_dep(ctx, dep) for dep in source_dependencies]
+        source_args_string = " ".join(source_args)
     ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
-    ghci_script_arg = ""
     if ctx.file.ghci_script:
         ghci_script_path = _get_runfile_path(ctx, ctx.file.ghci_script)
-        ghci_script_arg = "-ghci-script \"$RUNFILES_DIR/{}\"".format(ghci_script_path)
         final_runfiles = final_runfiles.merge(ctx.runfiles(files = [ctx.file.ghci_script]))
-    script_suffix = """
-exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_dependencies} {ghci_script_arg}
+        script_suffix = """
+SCRIPT_PATH="$RUNFILES_DIR/{ghci_script_path}"
+exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_dependencies} < <(echo ":script \\"$SCRIPT_PATH\\""; cat;)
 """.format(
-        ghc = ghc_runpath,
-        precompiled_dependencies = package_args_string,
-        source_dependencies = source_args_string,
-        ghci_script_arg = ghci_script_arg,
-    )
+            ghci_script_path = ghci_script_path,
+            ghc = ghc_runpath,
+            precompiled_dependencies = package_args_string,
+            source_dependencies = source_args_string,
+        )
+    else:
+        script_suffix = """
+exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_dependencies}
+""".format(
+            ghc = ghc_runpath,
+            precompiled_dependencies = package_args_string,
+            source_dependencies = source_args_string,
+        )
     for dep in source_dependencies:
         final_runfiles = final_runfiles.merge(dep[DefaultInfo].default_runfiles)
     for dep in precompiled_dependencies:
