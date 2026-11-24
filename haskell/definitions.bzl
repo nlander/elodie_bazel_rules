@@ -264,6 +264,7 @@ fi
 {path_exports}
 """.format( path_exports = path_exports )
     final_runfiles = ctx.runfiles(files = tool_runfiles)
+    final_runfiles = final_runfiles.merge(ctx.runfiles(files = ctx.files.data))
     source_dependencies = ctx.attr.dependencies
     source_dep_names = [dep.label.name for dep in source_dependencies]
     precompiled_dependencies_set = depset()
@@ -280,6 +281,8 @@ fi
     source_args = [_get_source_arg_for_dep(ctx, dep) for dep in source_dependencies]
     source_args_string = " ".join(source_args)
     ghc_runpath = _get_runfile_path(ctx, ctx.executable._ghc)
+    if ctx.file.ghci_script:
+        final_runfiles = final_runfiles.merge(ctx.runfiles(files = [ctx.file.ghci_script]))
     script_suffix = """
 exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_dependencies}
 """.format(
@@ -307,7 +310,8 @@ exec "$RUNFILES_DIR/{ghc}" --interactive {precompiled_dependencies} {source_depe
 
 def _make_haskell_repl_rule():
     attrs = {
-        "tools": attr.label_list(allow_files = True,
+        "tools": attr.label_list(
+            allow_files = True,
             cfg = "target",
             default = [],
         ),
@@ -319,6 +323,13 @@ def _make_haskell_repl_rule():
         "dependencies": attr.label_list(
             providers = [HaskellLibraryInfo],
             default = [],
+        ),
+        "data": attr.label_list(
+            allow_files = True,
+            default = [],
+        ),
+        "ghci_script": attr.label(
+            allow_single_file = True,
         ),
     }
     return rule(
